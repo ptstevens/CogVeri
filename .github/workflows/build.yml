@@ -1,0 +1,89 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Build Docker image
+        run: |
+          docker build -t relay-backend:${{ github.sha }} ./backend
+
+      - name: Save Docker image
+        run: |
+          docker save relay-backend:${{ github.sha }} > backend-image.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-docker-image
+          path: backend-image.tar
+          retention-days: 7
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: ${{ secrets.PRODUCTION_API_URL || '/api' }}
+          VITE_APP_NAME: Relay
+        run: npm run build
+
+      - name: Build Docker image
+        run: |
+          docker build -t relay-frontend:${{ github.sha }} ./frontend
+
+      - name: Save Docker image
+        run: |
+          docker save relay-frontend:${{ github.sha }} > frontend-image.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-docker-image
+          path: frontend-image.tar
+          retention-days: 7
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: ./frontend/dist
+          retention-days: 7

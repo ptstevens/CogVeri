@@ -5,7 +5,7 @@ nixPkgs = ["nodejs"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build --workspace=@relay/backend"]
+cmds = ["npm run build"]
 
 [start]
-cmd = "npm run start:migrate --workspace=@relay/backend"
+cmd = "npm run start:migrate"

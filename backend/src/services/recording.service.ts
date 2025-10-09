@@ -202,10 +202,10 @@ class RecordingService {
           .where('id', recording.task_id)
           .first();
 
-        if (task && task.reviewer_id) {
+        if (task && task.reviewed_by) {
           // Get reviewer details
           const reviewer = await db('users')
-            .where('id', task.reviewer_id)
+            .where('id', task.reviewed_by)
             .first();
 
           // Get assignee details (who uploaded the recording)
@@ -234,8 +234,8 @@ class RecordingService {
           updated_at: new Date()
         };
 
-        if (!task.reviewer_id && task.created_by) {
-          updateData.reviewer_id = task.created_by;
+        if (!task.reviewed_by && task.created_by) {
+          updateData.reviewed_by = task.created_by;
           logger.info(`Auto-assigned task creator ${task.created_by} as reviewer for task ${recording.task_id}`);
         }
 

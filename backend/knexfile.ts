@@ -50,9 +50,9 @@ const config: { [key: string]: Knex.Config } = {
       max: 10,
     },
     migrations: {
-      directory: './migrations',
+      directory: './dist/migrations',
       tableName: 'knex_migrations',
-      extension: 'ts',
+      extension: 'js',
     },
   },
 };

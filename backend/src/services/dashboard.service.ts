@@ -38,7 +38,7 @@ class DashboardService {
         .where(function() {
           this.where('assigned_to', userId)
             .orWhere('created_by', userId)
-            .orWhere('reviewer_id', userId);
+            .orWhere('reviewed_by', userId);
         })
         .groupBy('status')
         .select(db.raw('count(*) as count'), 'status');
@@ -68,7 +68,7 @@ class DashboardService {
         .where(function() {
           this.where('assigned_to', userId)
             .orWhere('created_by', userId)
-            .orWhere('reviewer_id', userId);
+            .orWhere('reviewed_by', userId);
         })
         .where('due_date', '<', new Date())
         .whereIn('status', ['assigned', 'in_progress', 'submitted'])
@@ -82,7 +82,7 @@ class DashboardService {
         .where(function() {
           this.where('assigned_to', userId)
             .orWhere('created_by', userId)
-            .orWhere('reviewer_id', userId);
+            .orWhere('reviewed_by', userId);
         })
         .where('archived', true)
         .count('* as count')
@@ -153,7 +153,7 @@ class DashboardService {
         .where(function() {
           this.where('assigned_to', userId)
             .orWhere('created_by', userId)
-            .orWhere('reviewer_id', userId);
+            .orWhere('reviewed_by', userId);
         })
         .orderBy('updated_at', 'desc')
         .limit(10)

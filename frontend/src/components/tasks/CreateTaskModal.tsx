@@ -45,7 +45,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose }) =>
     type: 'recording',
     priority: 'medium',
     assigned_to: '',
-    reviewer_id: '',
+    reviewed_by: '',
     due_date: '',
     estimated_duration: undefined,
     tags: [],
@@ -95,7 +95,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose }) =>
       type: 'recording',
       priority: 'medium',
       assigned_to: '',
-      reviewer_id: '',
+      reviewed_by: '',
       due_date: '',
       estimated_duration: undefined,
       tags: [],
@@ -406,13 +406,13 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose }) =>
               </div>
 
               <div>
-                <label htmlFor="reviewer_id" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="reviewed_by" className="block text-sm font-medium text-gray-700 mb-2">
                   Reviewer (Optional)
                 </label>
                 <select
-                  id="reviewer_id"
-                  name="reviewer_id"
-                  value={formData.reviewer_id}
+                  id="reviewed_by"
+                  name="reviewed_by"
+                  value={formData.reviewed_by}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   disabled={usersLoading}

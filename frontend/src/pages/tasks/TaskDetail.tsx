@@ -153,7 +153,7 @@ const TaskDetail: React.FC = () => {
                 </div>
               )}
 
-              {task.reviewer_name && (
+              {task.reviewed_by && (
                 <div>
                   <span className="text-gray-500">Reviewer:</span>
                   <span className="text-gray-900">{task.reviewer_name}</span>
@@ -180,7 +180,7 @@ const TaskDetail: React.FC = () => {
               <p className="mb-2">
                 Submitted by: {task.claim_name || task.claim_email || task.assignee_name || task.assignee_email}
               </p>
-              {task.reviewer_id === user?.id && (
+              {task.reviewed_by === user?.id && (
                 <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
                   <p className="text-indigo-900 font-medium">
                     You are the reviewer for this task.

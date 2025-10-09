@@ -35,7 +35,7 @@ interface Task {
   status: string;
   priority: string;
   assigned_to: string;
-  reviewer_id: string;
+  reviewed_by: string;
   assignee_name: string;
   assignee_email: string;
   created_at: string;
@@ -191,7 +191,7 @@ const TaskReview: React.FC = () => {
   }
 
   const recording = recordings?.[0]; // Get the first recording
-  const isReviewer = user?.id === task?.reviewer_id;
+  const isReviewer = user?.id === task?.reviewed_by;
 
   if (!isReviewer && user?.role !== 'admin') {
     return (

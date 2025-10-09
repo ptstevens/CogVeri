@@ -28,7 +28,7 @@ interface Task {
   status: string;
   priority: string;
   assigned_to: string;
-  reviewer_id: string;
+  reviewed_by: string;
   assignee_name: string;
   assignee_email: string;
   created_at: string;
@@ -67,7 +67,7 @@ const Reviews: React.FC = () => {
     queryFn: async () => {
       const response = await api.get('/tasks', {
         params: {
-          reviewer_id: user?.id,
+          reviewed_by: user?.id,
           ...(statusFilter !== 'all' && { status: statusFilter }),
           ...(priorityFilter !== 'all' && { priority: priorityFilter }),
         },
@@ -167,7 +167,7 @@ const Reviews: React.FC = () => {
   const filterTasks = (tasks: Task[]) => {
     return tasks?.filter(task => {
       // Only show tasks that are assigned for review
-      const matchesReviewer = task.reviewer_id === user?.id;
+      const matchesReviewer = task.reviewed_by === user?.id;
       const matchesArchive = showArchived ? task.archived === true : task.archived !== true;
       return matchesReviewer && matchesArchive;
     }) || [];

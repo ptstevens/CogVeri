@@ -9,7 +9,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to: string;
   created_by: string;
-  reviewer_id?: string;
+  reviewed_by?: string;
   due_date?: string;
   completed_at?: string;
   estimated_duration?: number;
@@ -33,7 +33,7 @@ export interface CreateTaskDto {
   type: 'recording' | 'live_demo' | 'hybrid';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to: string;
-  reviewer_id?: string;
+  reviewed_by?: string;
   due_date?: string;
   estimated_duration?: number;
   tags?: string[];
@@ -46,7 +46,7 @@ export interface UpdateTaskDto {
   status?: 'pending' | 'in_progress' | 'completed' | 'reviewed';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to?: string;
-  reviewer_id?: string;
+  reviewed_by?: string;
   due_date?: string;
   estimated_duration?: number;
   actual_duration?: number;

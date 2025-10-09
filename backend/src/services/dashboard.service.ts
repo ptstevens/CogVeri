@@ -35,14 +35,13 @@ class DashboardService {
     try {
       // Get task stats for tasks related to this user
       const taskStats = await db('tasks')
-        .select('status')
         .where(function() {
           this.where('assigned_to', userId)
             .orWhere('created_by', userId)
             .orWhere('reviewer_id', userId);
         })
         .groupBy('status')
-        .select(db.raw('count(*) as count, status'));
+        .select(db.raw('count(*) as count'), 'status');
 
       const tasks = {
         total: 0,

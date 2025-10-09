@@ -62,6 +62,16 @@ export const errorHandler = (
   }
 
   // Default error response
+  // In production, log error details but send safe message
+  if (process.env.NODE_ENV === 'production') {
+    // Still log the full error for debugging
+    logger.error('Unhandled error:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name,
+    });
+  }
+
   return res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'production'

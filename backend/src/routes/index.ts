@@ -7,6 +7,7 @@ import userRoutes from './user.routes';
 import dashboardRoutes from './dashboard.routes';
 import testRoutes from './test.routes';
 import magicLinkRoutes from './magicLink.routes';
+import debugRoutes from './debug.routes';
 
 const router = Router();
 
@@ -28,5 +29,10 @@ router.use('/users', userRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/test', testRoutes);
 router.use('/magic-links', magicLinkRoutes);
+
+// Debug routes (only in non-production or for troubleshooting)
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEBUG === 'true') {
+  router.use('/debug', debugRoutes);
+}
 
 export default router;

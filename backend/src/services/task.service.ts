@@ -60,7 +60,9 @@ class TaskService {
       const uuidFields = ['assigned_to', 'reviewed_by'];
       uuidFields.forEach(field => {
         if (field in cleanedData) {
-          if (!cleanedData[field] || cleanedData[field].trim() === '') {
+          const value = cleanedData[field];
+          // Convert empty string, null, undefined, or whitespace-only string to null
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
             cleanedData[field] = null;
           }
         }

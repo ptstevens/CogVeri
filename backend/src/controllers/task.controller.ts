@@ -12,6 +12,9 @@ class TaskController {
     try {
       const userId = req.user!.id;
 
+      // Log incoming request for debugging
+      logger.info('Creating task:', { userId, body: req.body });
+
       // Validate required fields
       const { title, type } = req.body;
       if (!title || !type) {

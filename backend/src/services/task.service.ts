@@ -12,7 +12,6 @@ export interface Task {
   assigned_to: string;
   created_by: string;
   reviewed_by?: string;
-  reviewer_id?: string;
   due_date?: Date;
   completed_at?: Date;
   estimated_duration?: number;
@@ -30,7 +29,6 @@ export interface CreateTaskDto {
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to?: string | null; // Optional for external link tasks
   reviewed_by?: string | null;
-  reviewer_id?: string | null; // Optional, same as reviewed_by
   due_date?: Date;
   estimated_duration?: number;
   tags?: string[];
@@ -59,7 +57,7 @@ class TaskService {
       const cleanedData: any = { ...taskData };
 
       // Convert empty strings to null for all UUID fields
-      const uuidFields = ['assigned_to', 'reviewed_by', 'reviewer_id'];
+      const uuidFields = ['assigned_to', 'reviewed_by'];
       uuidFields.forEach(field => {
         if (field in cleanedData) {
           if (!cleanedData[field] || cleanedData[field].trim() === '') {
@@ -154,7 +152,7 @@ class TaskService {
       const task = await db('tasks')
         .leftJoin('users as assignee', 'tasks.assigned_to', 'assignee.id')
         .leftJoin('users as creator', 'tasks.created_by', 'creator.id')
-        .leftJoin('users as reviewer', 'tasks.reviewer_id', 'reviewer.id')
+        .leftJoin('users as reviewer', 'tasks.reviewed_by', 'reviewer.id')
         .select(
           'tasks.*',
           'assignee.name as assignee_name',
@@ -175,7 +173,7 @@ class TaskService {
       if (
         task.assigned_to !== userId &&
         task.created_by !== userId &&
-        task.reviewer_id !== userId
+        task.reviewed_by !== userId
       ) {
         throw new NotFoundError('Task not found');
       }
@@ -193,13 +191,13 @@ class TaskService {
       const existingTask = await this.getTaskById(taskId, userId);
 
       // Only creator, assignee, or reviewer can update
-      if (existingTask.created_by !== userId && existingTask.assigned_to !== userId && existingTask.reviewer_id !== userId) {
+      if (existingTask.created_by !== userId && existingTask.assigned_to !== userId && existingTask.reviewed_by !== userId) {
         throw new BadRequestError('You do not have permission to update this task');
       }
 
       // Clean up empty strings to null for UUID fields
       const cleanedData: any = { ...updateData };
-      const uuidFields = ['assigned_to', 'reviewed_by', 'reviewer_id'];
+      const uuidFields = ['assigned_to', 'reviewed_by'];
       uuidFields.forEach(field => {
         if (field in cleanedData) {
           const value = cleanedData[field];

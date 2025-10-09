@@ -154,31 +154,56 @@ class RecordingService {
 
       // Upload to S3 if configured, otherwise save locally
       if (this.s3Client && process.env.AWS_S3_BUCKET) {
-        // Upload to S3
-        storageBucket = process.env.AWS_S3_BUCKET;
-        storageKey = `recordings/${recording.task_id}/${recordingId}/${file.originalname}`;
+        try {
+          logger.info(`Attempting S3/R2 upload for recording ${recordingId}`);
+          logger.info(`Bucket: ${process.env.AWS_S3_BUCKET}, Endpoint: ${process.env.AWS_ENDPOINT_URL || 'default'}`);
 
-        const command = new PutObjectCommand({
-          Bucket: storageBucket,
-          Key: storageKey,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-          Metadata: {
-            task_id: recording.task_id,
-            user_id: userId,
-            recording_id: recordingId,
-          },
-        });
+          // Upload to S3
+          storageBucket = process.env.AWS_S3_BUCKET;
+          storageKey = `recordings/${recording.task_id}/${recordingId}/${file.originalname}`;
 
-        await this.s3Client.send(command);
+          const command = new PutObjectCommand({
+            Bucket: storageBucket,
+            Key: storageKey,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+            Metadata: {
+              task_id: recording.task_id,
+              user_id: userId,
+              recording_id: recordingId,
+            },
+          });
 
-        // Generate signed URL for access
-        const getCommand = new GetObjectCommand({
-          Bucket: storageBucket,
-          Key: storageKey,
-        });
-        fileUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 days
+          logger.info(`Uploading to S3/R2: ${storageKey} (${file.size} bytes)`);
+          await this.s3Client.send(command);
+          logger.info(`S3/R2 upload successful for recording ${recordingId}`);
+
+          // Generate signed URL for access
+          const getCommand = new GetObjectCommand({
+            Bucket: storageBucket,
+            Key: storageKey,
+          });
+          fileUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 24 * 7 }); // 7 days
+          logger.info(`Generated signed URL for recording ${recordingId}`);
+        } catch (s3Error) {
+          // Log S3 error and fall back to local storage
+          logger.error(`S3/R2 upload failed for recording ${recordingId}, falling back to local storage:`, s3Error);
+
+          // Save locally as fallback
+          const fileName = `${recordingId}-${Date.now()}${path.extname(file.originalname)}`;
+          const filePath = path.join(this.uploadDir, fileName);
+
+          await fs.writeFile(filePath, file.buffer);
+
+          storageKey = fileName;
+          storageBucket = undefined;
+          fileUrl = `/uploads/recordings/${fileName}`;
+          logger.info(`Saved to local storage as fallback: ${fileName}`);
+        }
       } else {
+        logger.info(`S3Client: ${this.s3Client ? 'initialized' : 'not initialized'}, Bucket: ${process.env.AWS_S3_BUCKET || 'not set'}`);
+        logger.info('Using local storage for recording upload');
+
         // Save locally
         const fileName = `${recordingId}-${Date.now()}${path.extname(file.originalname)}`;
         const filePath = path.join(this.uploadDir, fileName);

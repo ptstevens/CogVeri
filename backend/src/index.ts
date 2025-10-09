@@ -98,6 +98,7 @@ app.get('/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
+    version: '1.0.1', // Trigger redeploy for reviewed_by column fix
   });
 });
 

@@ -9,9 +9,13 @@
 
 ### 2. Database Migration Issue
 - **Problem**: Migrations weren't running on Railway deployment, causing "relation 'users' does not exist" errors
-- **Root Cause**: Railway auto-detects npm workspaces and runs `npm start --workspace=backend`, bypassing `railway.toml` start command
-- **Fix**: Made the default `start` script in backend/package.json run migrations before starting server
-- **Result**: Migrations now run automatically regardless of how Railway invokes the start command
+- **Root Causes**:
+  - Railway auto-detects npm workspaces and runs `npm start --workspace=backend`, bypassing `railway.toml` start command
+  - Knex was looking for migrations in `./dist/migrations` but they're in `./migrations` (not compiled)
+- **Fixes**:
+  - Made the default `start` script in backend/package.json run migrations before starting server
+  - Updated knexfile.ts production config to point to source `./migrations` directory
+- **Result**: Migrations now run automatically using ts-node to execute TypeScript migration files
 
 ### 3. Monorepo Configuration
 - **Problem**: Railway was building from monorepo root but couldn't find backend files

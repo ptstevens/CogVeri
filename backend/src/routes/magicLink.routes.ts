@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import magicLinkController from '../controllers/magicLink.controller';
+import magicLinkController, { uploadMiddleware } from '../controllers/magicLink.controller';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -8,6 +8,7 @@ const router = Router();
 router.get('/validate/:token', magicLinkController.validateToken);
 router.get('/task/:token', magicLinkController.getTaskByToken);
 router.post('/claim/:token', magicLinkController.claimTask);
+router.post('/submit-recording/:token', uploadMiddleware, magicLinkController.submitRecording);
 
 // Protected routes (authentication required)
 router.post('/', authenticate, magicLinkController.createMagicLink);

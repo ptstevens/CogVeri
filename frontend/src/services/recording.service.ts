@@ -245,6 +245,45 @@ class RecordingService {
     this.startTime = 0;
   }
 
+  // Upload recording via magic link token (public endpoint)
+  async uploadRecordingWithToken(
+    blob: Blob,
+    token: string,
+    metadata: Partial<CreateRecordingDto>
+  ): Promise<Recording> {
+    // Create FormData with all data in one request
+    const formData = new FormData();
+    formData.append('video', blob, 'recording.webm');
+    formData.append('duration_seconds', String(metadata.duration_seconds || this.getRecordingDuration()));
+    formData.append('has_audio', String(metadata.has_audio || false));
+    formData.append('mime_type', blob.type);
+    if (metadata.resolution) {
+      formData.append('resolution', metadata.resolution);
+    }
+    if (metadata.frame_rate) {
+      formData.append('frame_rate', String(metadata.frame_rate));
+    }
+    formData.append('browser_info', navigator.userAgent);
+
+    const { data: response } = await api.post(
+      `/magic-links/submit-recording/${token}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1)
+          );
+          console.log(`Upload Progress: ${percentCompleted}%`);
+        },
+      }
+    );
+
+    return response.data;
+  }
+
   // Upload recording
   async uploadRecording(
     blob: Blob,

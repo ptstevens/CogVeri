@@ -161,7 +161,7 @@ const PublicTaskPage: React.FC = () => {
 
   // Upload recording
   const handleUploadRecording = async () => {
-    if (!recordedBlob || !taskData?.task) {
+    if (!recordedBlob || !taskData?.task || !token) {
       toast.error('No recording to upload');
       return;
     }
@@ -169,7 +169,8 @@ const PublicTaskPage: React.FC = () => {
     try {
       const uploadToast = toast.loading('Uploading recording...');
 
-      await recordingService.uploadRecording(recordedBlob, taskData.task.id, {
+      // Use the token-based upload method for external contributors
+      await recordingService.uploadRecordingWithToken(recordedBlob, token, {
         duration_seconds: recordingDuration,
         has_audio: includeAudio,
         resolution: '1920x1080', // You can get actual resolution from video

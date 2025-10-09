@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import magicLinkService from '../services/magicLink.service';
+import recordingService from '../services/recording.service';
 import { BadRequestError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
+import multer from 'multer';
 
 // Validation schemas
 const createMagicLinkSchema = z.object({
@@ -18,6 +20,40 @@ const claimTaskSchema = z.object({
   lastName: z.string().min(1).max(100),
   email: z.string().email(),
 });
+
+const submitRecordingSchema = z.object({
+  duration_seconds: z.number().int().positive(),
+  has_audio: z.boolean(),
+  mime_type: z.string(),
+  resolution: z.string().optional(),
+  frame_rate: z.number().optional(),
+  browser_info: z.string().optional(),
+});
+
+// Configure multer for file uploads (same as recording controller)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept video files (including webm) and octet-stream (for blob uploads)
+    const acceptedTypes = ['video/', 'application/octet-stream'];
+    const isAccepted = acceptedTypes.some(type => file.mimetype.startsWith(type));
+
+    // Also check file extension for .webm files
+    const hasWebmExtension = file.originalname?.toLowerCase().endsWith('.webm');
+
+    if (isAccepted || hasWebmExtension) {
+      cb(null, true);
+    } else {
+      cb(new BadRequestError(`Only video files are allowed. Received: ${file.mimetype}`));
+    }
+  },
+});
+
+export const uploadMiddleware = upload.single('video');
 
 class MagicLinkController {
   /**
@@ -175,6 +211,92 @@ class MagicLinkController {
         data: analytics,
       });
     } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Submit recording via magic link token (public endpoint)
+   * This creates a recording entry and uploads the video file in one request
+   */
+  async submitRecording(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        throw new BadRequestError('No video file provided');
+      }
+
+      // Validate token and get task
+      const tokenData = await magicLinkService.validateToken(
+        token,
+        (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+        req.headers['user-agent']
+      );
+
+      if (!tokenData.isValid || !tokenData.task) {
+        throw new BadRequestError('Invalid or expired token');
+      }
+
+      const taskId = tokenData.task.id;
+
+      // Get the contributor ID from the token
+      const { db } = await import('../config/database');
+      const tokenRecord = await db('task_access_tokens')
+        .where('token', token)
+        .andWhere('is_revoked', false)
+        .first();
+
+      if (!tokenRecord) {
+        throw new BadRequestError('Token not found');
+      }
+
+      const contributorId = tokenRecord.contributor_id;
+
+      // Get contributor to use their ID as user_id for the recording
+      const contributor = await db('external_contributors')
+        .where('id', contributorId)
+        .first();
+
+      if (!contributor) {
+        throw new BadRequestError('Contributor not found');
+      }
+
+      // Parse metadata from request body
+      const metadata = req.body;
+      const validatedData = submitRecordingSchema.parse({
+        duration_seconds: metadata.duration_seconds ? parseInt(metadata.duration_seconds) : 0,
+        has_audio: metadata.has_audio === 'true' || metadata.has_audio === true,
+        mime_type: metadata.mime_type || file.mimetype,
+        resolution: metadata.resolution,
+        frame_rate: metadata.frame_rate ? parseFloat(metadata.frame_rate) : undefined,
+        browser_info: metadata.browser_info,
+      });
+
+      // Create recording entry using contributor ID as user_id
+      // We'll use a special marker in metadata to indicate this is an external contributor
+      const recording = await recordingService.createRecording(contributorId, {
+        task_id: taskId,
+        ...validatedData,
+      });
+
+      // Upload the video file
+      const uploadedRecording = await recordingService.uploadRecording(contributorId, recording.id, file);
+
+      logger.info(`External contributor recording submitted via token: ${recording.id} for task ${taskId}`);
+
+      res.json({
+        success: true,
+        data: uploadedRecording,
+        message: 'Recording submitted successfully',
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return next(
+          new BadRequestError(`Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`)
+        );
+      }
       next(error);
     }
   }

@@ -242,8 +242,10 @@ class MagicLinkController {
       const taskId = tokenData.taskId;
       const contributorId = tokenData.contributorId;
 
-      // Get contributor to verify they exist
+      // Get database connection
       const { db } = await import('../config/database');
+
+      // Get contributor to verify they exist
       const contributor = await db('external_contributors')
         .where('id', contributorId)
         .first();
@@ -275,7 +277,6 @@ class MagicLinkController {
       });
 
       // Set the external_contributor_id after creation
-      const { db } = await import('../config/database');
       await db('recordings')
         .where('id', recording.id)
         .update({ external_contributor_id: contributorId });

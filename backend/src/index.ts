@@ -17,6 +17,7 @@ import { rateLimiter } from './middleware/rateLimiter';
 import routes from './routes';
 import { connectDatabase } from './config/database';
 import { initializeSocketIO } from './services/socket';
+import { db } from './config/database';
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,6 +35,9 @@ const io = new Server(httpServer, {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// Trust proxy - required for Railway and rate limiting
+app.set('trust proxy', 1);
 
 // Basic middleware
 app.use(helmet({
@@ -120,6 +124,11 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDatabase();
+
+    // Run migrations
+    logger.info('Running database migrations...');
+    await db.migrate.latest();
+    logger.info('Database migrations completed');
 
     httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);

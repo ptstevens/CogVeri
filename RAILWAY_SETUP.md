@@ -31,6 +31,9 @@ LOG_FORMAT=json
 ### Optional Variables (Features)
 
 ```bash
+# Enable Debug Endpoints (for troubleshooting production issues)
+ENABLE_DEBUG=true
+
 # Email Notifications (Gmail)
 EMAIL_ENABLED=true
 EMAIL_HOST=smtp.gmail.com
@@ -75,6 +78,23 @@ Should return:
 }
 ```
 
+### Debug Endpoints (if ENABLE_DEBUG=true)
+
+**Check Configuration:**
+```bash
+curl https://your-backend-app.up.railway.app/api/debug/config
+```
+
+**Test Database Connection:**
+```bash
+curl https://your-backend-app.up.railway.app/api/debug/db
+```
+
+**List Database Tables:**
+```bash
+curl https://your-backend-app.up.railway.app/api/debug/tables
+```
+
 ### Test Registration
 ```bash
 curl -X POST https://your-backend-app.up.railway.app/api/auth/register \
@@ -115,6 +135,34 @@ curl -X POST https://your-backend-app.up.railway.app/api/auth/register \
 1. Get your Railway frontend URL
 2. Set CORS_ORIGIN=https://your-frontend-url.railway.app
 3. Redeploy
+
+---
+
+### "relation 'users' does not exist" Error
+
+**Cause**: Database migrations not running before server starts
+
+**Symptoms**:
+- 500 error on `/api/auth/register`
+- Logs show: `relation "users" does not exist`
+- Server starts successfully but database tables are missing
+
+**Fix**:
+1. Verify `railway.json` is in the **monorepo root** (not in `backend/` subdirectory)
+2. Check Railway logs show migration output before server starts:
+   ```
+   Running migrations...
+   Batch 1 run: X migrations
+   ```
+3. If migrations still don't run, manually trigger them:
+   ```bash
+   railway run --service backend npm run db:migrate:prod
+   ```
+
+**Debug**:
+- Enable debug endpoints: Set `ENABLE_DEBUG=true` in Railway variables
+- Check `/api/debug/tables` to see if tables exist
+- Check `/api/debug/db` to verify database connection
 
 ---
 

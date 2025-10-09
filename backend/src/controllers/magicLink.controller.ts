@@ -228,33 +228,22 @@ class MagicLinkController {
         throw new BadRequestError('No video file provided');
       }
 
-      // Validate token and get task
+      // Validate token
       const tokenData = await magicLinkService.validateToken(
         token,
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
         req.headers['user-agent']
       );
 
-      if (!tokenData.isValid || !tokenData.task) {
+      if (!tokenData.valid || !tokenData.taskId || !tokenData.contributorId) {
         throw new BadRequestError('Invalid or expired token');
       }
 
-      const taskId = tokenData.task.id;
+      const taskId = tokenData.taskId;
+      const contributorId = tokenData.contributorId;
 
-      // Get the contributor ID from the token
+      // Get contributor to verify they exist
       const { db } = await import('../config/database');
-      const tokenRecord = await db('task_access_tokens')
-        .where('token', token)
-        .andWhere('is_revoked', false)
-        .first();
-
-      if (!tokenRecord) {
-        throw new BadRequestError('Token not found');
-      }
-
-      const contributorId = tokenRecord.contributor_id;
-
-      // Get contributor to use their ID as user_id for the recording
       const contributor = await db('external_contributors')
         .where('id', contributorId)
         .first();
@@ -266,7 +255,7 @@ class MagicLinkController {
       // Parse metadata from request body
       const metadata = req.body;
       const validatedData = submitRecordingSchema.parse({
-        duration_seconds: metadata.duration_seconds ? parseInt(metadata.duration_seconds) : 0,
+        duration_seconds: metadata.duration_seconds ? parseInt(metadata.duration_seconds) : 1, // Default to 1 if 0
         has_audio: metadata.has_audio === 'true' || metadata.has_audio === true,
         mime_type: metadata.mime_type || file.mimetype,
         resolution: metadata.resolution,
@@ -278,7 +267,12 @@ class MagicLinkController {
       // We'll use a special marker in metadata to indicate this is an external contributor
       const recording = await recordingService.createRecording(contributorId, {
         task_id: taskId,
-        ...validatedData,
+        duration_seconds: validatedData.duration_seconds,
+        has_audio: validatedData.has_audio,
+        mime_type: validatedData.mime_type,
+        resolution: validatedData.resolution,
+        frame_rate: validatedData.frame_rate,
+        browser_info: validatedData.browser_info,
       });
 
       // Upload the video file

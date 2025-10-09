@@ -1,5 +1,27 @@
 # Railway Deployment Setup Guide
 
+## Prerequisites
+
+This project uses a monorepo structure with `backend/` and `frontend/` directories. Railway needs to know which directory to build.
+
+**Required File**: `railway.toml` in the monorepo root
+
+```toml
+[build]
+root = "backend"
+builder = "Nixpacks"
+buildCommand = "npm run build"
+
+[start]
+cmd = "npm run start:migrate"
+```
+
+This tells Railway:
+- Set working directory to `backend/`
+- Use Nixpacks (default Node.js builder)
+- Run `npm run build` to compile TypeScript
+- Run `npm run start:migrate` to run migrations then start server
+
 ## 1. Add PostgreSQL Database
 
 In your Railway project:
@@ -148,7 +170,16 @@ curl -X POST https://your-backend-app.up.railway.app/api/auth/register \
 - Server starts successfully but database tables are missing
 
 **Fix**:
-1. Verify `railway.json` is in the **monorepo root** (not in `backend/` subdirectory)
+1. Verify `railway.toml` is in the **monorepo root** with correct root setting:
+   ```toml
+   [build]
+   root = "backend"
+   builder = "Nixpacks"
+   buildCommand = "npm run build"
+
+   [start]
+   cmd = "npm run start:migrate"
+   ```
 2. Check Railway logs show migration output before server starts:
    ```
    Running migrations...
@@ -156,7 +187,7 @@ curl -X POST https://your-backend-app.up.railway.app/api/auth/register \
    ```
 3. If migrations still don't run, manually trigger them:
    ```bash
-   railway run --service backend npm run db:migrate:prod
+   railway run npm run db:migrate:prod
    ```
 
 **Debug**:

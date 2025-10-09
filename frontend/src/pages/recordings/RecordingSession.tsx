@@ -28,7 +28,7 @@ const RecordingSession: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
-  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'paused' | 'stopped'>('idle');
+  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'paused' | 'stopped' | 'submitted'>('idle');
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [includeAudio, setIncludeAudio] = useState(true);
@@ -167,7 +167,13 @@ const RecordingSession: React.FC = () => {
       await taskService.submitTask(taskId, recording.id);
 
       toast.success('Recording uploaded successfully');
-      navigate('/tasks');
+
+      // If user is authenticated, navigate to tasks, otherwise show success screen
+      if (user) {
+        navigate('/tasks');
+      } else {
+        setRecordingState('submitted');
+      }
     } catch (error) {
       console.error('Failed to upload recording:', error);
       toast.error('Failed to upload recording');
@@ -226,6 +232,56 @@ const RecordingSession: React.FC = () => {
           Your browser does not support screen recording. Please use a modern browser like
           Chrome, Edge, or Firefox to use this feature.
         </p>
+      </div>
+    );
+  }
+
+  // Show success screen for external contributors
+  if (recordingState === 'submitted') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-2xl w-full bg-white rounded-lg border border-gray-200 shadow-lg p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="bg-green-100 rounded-full p-4 mb-6">
+              <CheckCircle className="h-16 w-16 text-green-600" />
+            </div>
+
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Recording Submitted Successfully! 🎉
+            </h1>
+
+            <p className="text-lg text-gray-600 mb-8">
+              Thank you for completing this task. Your recording has been uploaded and will be reviewed shortly.
+            </p>
+
+            <div className="w-full bg-blue-50 rounded-lg p-6 mb-8">
+              <h3 className="font-semibold text-blue-900 mb-3">What happens next?</h3>
+              <ul className="text-left text-sm text-blue-800 space-y-2">
+                <li className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>The task owner will review your recording</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>You'll receive an email with feedback or approval</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                  <span>If changes are needed, you'll get a new link to resubmit</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-6 w-full">
+              <p className="text-sm text-gray-600">
+                <strong>You can now safely close this browser tab.</strong>
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                If you have any questions, please contact the person who sent you the task link.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

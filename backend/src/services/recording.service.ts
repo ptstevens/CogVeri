@@ -82,7 +82,7 @@ class RecordingService {
     }
   }
 
-  async createRecording(userId: string, data: CreateRecordingDto): Promise<Recording> {
+  async createRecording(userId: string | null, data: CreateRecordingDto): Promise<Recording> {
     try {
       // Parse resolution if provided
       let width: number | undefined;
@@ -131,7 +131,11 @@ class RecordingService {
         throw new NotFoundError('Recording not found');
       }
 
-      if (recording.user_id !== userId) {
+      // Check ownership - either user_id or external_contributor_id must match
+      const isOwner = recording.user_id === userId ||
+                      (recording as any).external_contributor_id === userId;
+
+      if (!isOwner) {
         throw new BadRequestError('Unauthorized to upload to this recording');
       }
 
@@ -208,10 +212,26 @@ class RecordingService {
             .where('id', task.reviewed_by)
             .first();
 
-          // Get assignee details (who uploaded the recording)
-          const assignee = await db('users')
+          // Try to get assignee from users table first, then external contributors
+          let assignee = await db('users')
             .where('id', userId)
             .first();
+
+          // If not found in users table, check external_contributors table
+          if (!assignee) {
+            const contributor = await db('external_contributors')
+              .where('id', userId)
+              .first();
+
+            if (contributor) {
+              // Create a user-like object for external contributor
+              assignee = {
+                id: contributor.id,
+                name: `${contributor.first_name || ''} ${contributor.last_name || ''}`.trim() || contributor.email,
+                email: contributor.email,
+              };
+            }
+          }
 
           if (reviewer && assignee) {
             // Send email notification to reviewer

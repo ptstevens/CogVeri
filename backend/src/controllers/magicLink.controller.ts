@@ -263,9 +263,8 @@ class MagicLinkController {
         browser_info: metadata.browser_info,
       });
 
-      // Create recording entry using contributor ID as user_id
-      // We'll use a special marker in metadata to indicate this is an external contributor
-      const recording = await recordingService.createRecording(contributorId, {
+      // Create recording entry with null user_id and external_contributor_id
+      const recording = await recordingService.createRecording(null, {
         task_id: taskId,
         duration_seconds: validatedData.duration_seconds,
         has_audio: validatedData.has_audio,
@@ -275,7 +274,13 @@ class MagicLinkController {
         browser_info: validatedData.browser_info,
       });
 
-      // Upload the video file
+      // Set the external_contributor_id after creation
+      const { db } = await import('../config/database');
+      await db('recordings')
+        .where('id', recording.id)
+        .update({ external_contributor_id: contributorId });
+
+      // Upload the video file (using contributorId for permission check)
       const uploadedRecording = await recordingService.uploadRecording(contributorId, recording.id, file);
 
       logger.info(`External contributor recording submitted via token: ${recording.id} for task ${taskId}`);

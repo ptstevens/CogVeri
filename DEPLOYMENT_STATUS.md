@@ -9,8 +9,9 @@
 
 ### 2. Database Migration Issue
 - **Problem**: Migrations weren't running on Railway deployment, causing "relation 'users' does not exist" errors
-- **Fix**: Created `railway.toml` with `root = "backend"` setting
-- **Result**: Railway now runs migrations before starting the server
+- **Root Cause**: Railway auto-detects npm workspaces and runs `npm start --workspace=backend`, bypassing `railway.toml` start command
+- **Fix**: Made the default `start` script in backend/package.json run migrations before starting server
+- **Result**: Migrations now run automatically regardless of how Railway invokes the start command
 
 ### 3. Monorepo Configuration
 - **Problem**: Railway was building from monorepo root but couldn't find backend files
@@ -27,6 +28,7 @@
 ```
 ✅ backend/tsconfig.json - Added rootDir configuration
 ✅ backend/build.sh - Added build verification script
+✅ backend/package.json - Made start script run migrations by default
 ✅ railway.toml - New Railway configuration (in monorepo root)
 ✅ backend/src/routes/debug.routes.ts - New debug endpoints
 ✅ backend/src/routes/index.ts - Added debug routes

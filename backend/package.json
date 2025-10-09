@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
-    "build": "cd backend && tsc || tsc",
-    "start": "node backend/dist/index.js || node dist/index.js",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "start:migrate": "npm run db:migrate:prod && npm start",
     "test": "jest",
     "test:watch": "jest --watch",

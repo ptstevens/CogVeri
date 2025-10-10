@@ -57,12 +57,12 @@ class RecordingService {
     );
   }
 
-  // Get supported MIME types (VP8 first for better compatibility)
+  // Get supported MIME types (VP9 first for better compression)
   getSupportedMimeTypes(): string[] {
     const types = [
-      'video/webm;codecs=vp8,opus',
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=h264,opus',
+      'video/webm;codecs=vp9,opus',   // Best compression for screen content
+      'video/webm;codecs=vp8,opus',   // Fallback for older browsers
+      'video/webm;codecs=h264,opus',  // Alternative codec
       'video/webm',
       'video/mp4',
     ];
@@ -115,11 +115,18 @@ class RecordingService {
       // Create MediaRecorder
       const recorderOptions: MediaRecorderOptions = {
         mimeType,
-        videoBitsPerSecond: options.videoBitsPerSecond || 2500000, // 2.5 Mbps
+        // Optimized bitrate for screen recordings:
+        // - Screen content compresses better than camera footage
+        // - VP9 codec provides 30-50% better compression than VP8
+        // - 1.2 Mbps is optimal for 1080p screen content with text/UI
+        videoBitsPerSecond: options.videoBitsPerSecond || 1200000, // 1.2 Mbps (down from 2.5)
       };
 
       if (options.audioBitsPerSecond) {
         recorderOptions.audioBitsPerSecond = options.audioBitsPerSecond;
+      } else if (options.audio) {
+        // Optimize audio bitrate for voice (128kbps is excellent for speech)
+        recorderOptions.audioBitsPerSecond = 128000; // 128 kbps
       }
 
       this.mediaRecorder = new MediaRecorder(this.stream, recorderOptions);

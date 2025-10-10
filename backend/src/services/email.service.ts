@@ -38,7 +38,7 @@ class EmailService {
       this.transporter.verify((error, success) => {
         if (error) {
           logger.warn('Email service not configured properly. Check credentials:');
-          logger.warn(`Error code: ${error.code}`);
+          logger.warn(`Error code: ${(error as any).code || 'N/A'}`);
           logger.warn(`Error message: ${error.message}`);
           logger.warn(`Full error:`, error);
           // Don't throw - allow the app to run without email

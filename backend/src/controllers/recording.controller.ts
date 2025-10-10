@@ -190,6 +190,48 @@ export const getRecordingDownloadUrl = async (req: AuthenticatedRequest, res: Re
   }
 };
 
+// Get playback URL for a recording (for video player)
+export const getRecordingPlaybackUrl = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user has access to the recording
+    const recording = await recordingService.getRecordingById(id);
+    if (!recording) {
+      throw new BadRequestError('Recording not found');
+    }
+
+    // Allow access if:
+    // 1. User owns the recording
+    // 2. User is admin
+    // 3. User is assigned to the task
+    // 4. User is reviewer for the task
+    if (recording.user_id !== req.user!.id && req.user!.role !== 'admin') {
+      // Check if user has access to the task (reviewer or assignee)
+      const { db } = await import('../config/database');
+      const task = await db('tasks').where('id', recording.task_id).first();
+
+      const hasTaskAccess = task && (
+        task.assigned_to === req.user!.id ||
+        task.reviewed_by === req.user!.id
+      );
+
+      if (!hasTaskAccess) {
+        throw new BadRequestError('Unauthorized to view this recording');
+      }
+    }
+
+    const url = await recordingService.getRecordingPlaybackUrl(id);
+
+    res.json({
+      success: true,
+      url,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get all recordings for a specific task
 export const getTaskRecordings = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

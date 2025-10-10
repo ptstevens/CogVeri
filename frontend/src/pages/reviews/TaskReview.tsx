@@ -81,6 +81,18 @@ const TaskReview: React.FC = () => {
     },
   });
 
+  // Fetch playback URL for the recording
+  const { data: playbackUrl, isLoading: playbackUrlLoading } = useQuery({
+    queryKey: ['playback-url', recordings?.[0]?.id],
+    queryFn: async () => {
+      if (!recordings?.[0]?.id) return null;
+      const response = await api.get(`/recordings/${recordings[0].id}/playback-url`);
+      return response.data.url;
+    },
+    enabled: !!recordings?.[0]?.id,
+    staleTime: 1000 * 60 * 60, // 1 hour (since signed URLs expire after 24 hours)
+  });
+
   // Submit review mutation
   const submitReviewMutation = useMutation({
     mutationFn: async (data: { decision: string; feedback: string }) => {
@@ -182,7 +194,7 @@ const TaskReview: React.FC = () => {
     submitReviewMutation.mutate({ decision, feedback });
   };
 
-  if (taskLoading || recordingsLoading) {
+  if (taskLoading || recordingsLoading || playbackUrlLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
@@ -273,7 +285,7 @@ const TaskReview: React.FC = () => {
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onError={handleVideoError}
-                  onLoadStart={() => console.log('Video load started', recording.file_url)}
+                  onLoadStart={() => console.log('Video load started', playbackUrl)}
                   onLoadedMetadata={(e) => {
                     const vid = e.currentTarget;
                     console.log('Video metadata loaded:', {
@@ -287,9 +299,10 @@ const TaskReview: React.FC = () => {
                   controlsList="nodownload"
                   preload="auto"
                   crossOrigin="anonymous"
+                  key={playbackUrl} // Force reload when URL changes
                 >
-                  <source src={`http://localhost:3000${recording.file_url}`} type="video/webm; codecs=vp8,opus" />
-                  <source src={`http://localhost:3000${recording.file_url}`} type="video/webm" />
+                  <source src={playbackUrl || undefined} type="video/webm; codecs=vp8,opus" />
+                  <source src={playbackUrl || undefined} type="video/webm" />
                   Your browser does not support the video tag or the video codec.
                 </video>
               </div>

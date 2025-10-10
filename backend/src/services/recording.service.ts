@@ -449,6 +449,44 @@ class RecordingService {
     }
   }
 
+  async getRecordingPlaybackUrl(recordingId: string): Promise<string> {
+    try {
+      const recording = await this.getRecordingById(recordingId);
+
+      if (!recording) {
+        throw new NotFoundError('Recording not found');
+      }
+
+      if (recording.status !== 'completed') {
+        throw new BadRequestError('Recording is not ready for playback');
+      }
+
+      // If using S3/R2, generate a fresh signed URL for streaming
+      if (recording.storage_provider === 's3' && this.s3Client && recording.storage_bucket && recording.storage_key) {
+        const command = new GetObjectCommand({
+          Bucket: recording.storage_bucket,
+          Key: recording.storage_key,
+          // Don't set ResponseContentDisposition for inline playback
+        });
+
+        // Longer expiration for playback (24 hours)
+        const url = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 * 24 });
+        logger.info(`Generated playback URL for recording ${recordingId}`);
+        return url;
+      }
+
+      // For local storage, return the file URL
+      if (recording.file_url) {
+        return recording.file_url;
+      }
+
+      throw new BadRequestError('Recording file not available');
+    } catch (error) {
+      logger.error('Error generating playback URL:', error);
+      throw error;
+    }
+  }
+
   async updateRecordingStatus(recordingId: string, status: Recording['status'], error?: string): Promise<void> {
     try {
       const updateData: any = {

@@ -8,6 +8,7 @@ import {
   getRecordings,
   deleteRecording,
   getRecordingDownloadUrl,
+  getRecordingPlaybackUrl,
   getTaskRecordings,
   updateRecordingStatus,
   uploadMiddleware,
@@ -25,6 +26,7 @@ router.get('/:id', getRecording); // Get single recording
 router.post('/:id/upload', uploadRateLimiter, uploadMiddleware, uploadRecording); // Upload video file
 router.delete('/:id', deleteRecording); // Delete recording
 router.get('/:id/download-url', getRecordingDownloadUrl); // Get download URL
+router.get('/:id/playback-url', getRecordingPlaybackUrl); // Get playback URL for video player
 router.put('/:id/status', updateRecordingStatus); // Update recording status (admin only)
 
 // Task-specific recordings

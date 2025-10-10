@@ -37,10 +37,15 @@ class EmailService {
     if (this.transporter) {
       this.transporter.verify((error, success) => {
         if (error) {
-          logger.warn('Email service not configured properly. Check credentials:', error.message);
+          logger.warn('Email service not configured properly. Check credentials:');
+          logger.warn(`Error code: ${error.code}`);
+          logger.warn(`Error message: ${error.message}`);
+          logger.warn(`Full error:`, error);
           // Don't throw - allow the app to run without email
         } else {
-          logger.info('Email service ready to send notifications');
+          logger.info('✅ Email service ready to send notifications');
+          logger.info(`SMTP configured: ${process.env.EMAIL_HOST}:${process.env.EMAIL_PORT}`);
+          logger.info(`Sending from: ${process.env.EMAIL_FROM || process.env.EMAIL_USER}`);
         }
       });
     }

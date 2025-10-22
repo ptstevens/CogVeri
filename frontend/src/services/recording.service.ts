@@ -241,6 +241,12 @@ class RecordingService {
     return Math.floor((Date.now() - this.startTime) / 1000);
   }
 
+  // Reset recording start time (useful after countdown)
+  resetStartTime(): void {
+    this.startTime = Date.now();
+    console.log('🔄 Recording start time reset');
+  }
+
   // Clean up resources
   private cleanup(): void {
     if (this.stream) {

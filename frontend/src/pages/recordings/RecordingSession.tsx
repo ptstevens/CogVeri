@@ -21,6 +21,8 @@ import {
 import { recordingService, RecordingOptions } from '../../services/recording.service';
 import { taskService } from '../../services/task.service';
 import { useAuth } from '../../contexts/AuthContext';
+import { RecordingPiPControls } from '../../components/RecordingPiPControls';
+import { useRecordingKeyboardShortcuts } from '../../hooks/useRecordingKeyboardShortcuts';
 import toast from 'react-hot-toast';
 
 const RecordingSession: React.FC = () => {
@@ -48,6 +50,16 @@ const RecordingSession: React.FC = () => {
   // Check browser support
   const isSupported = recordingService.isScreenRecordingSupported();
   const supportedTypes = recordingService.getSupportedMimeTypes();
+
+  // Enable global keyboard shortcuts for recording controls
+  useRecordingKeyboardShortcuts({
+    isRecording: recordingState === 'recording' || recordingState === 'paused',
+    isPaused: recordingState === 'paused',
+    onPause: pauseRecording,
+    onResume: resumeRecording,
+    onStop: stopRecording,
+    enabled: true,
+  });
 
   // Update recording duration every second
   useEffect(() => {
@@ -491,6 +503,18 @@ const RecordingSession: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Picture-in-Picture Controls - Always-on-top global controls */}
+      {(recordingState === 'recording' || recordingState === 'paused') && (
+        <RecordingPiPControls
+          isRecording={recordingState === 'recording' || recordingState === 'paused'}
+          isPaused={recordingState === 'paused'}
+          duration={recordingDuration}
+          onPause={pauseRecording}
+          onResume={resumeRecording}
+          onStop={stopRecording}
+        />
+      )}
     </div>
   );
 };

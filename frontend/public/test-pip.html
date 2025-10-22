@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiP API Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .supported {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .not-supported {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Document Picture-in-Picture API Test</h1>
+
+    <div id="status"></div>
+
+    <div class="info">
+        <h3>Browser Information:</h3>
+        <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+        <p><strong>Chrome Version:</strong> <span id="chromeVersion"></span></p>
+    </div>
+
+    <button id="testBtn" disabled>Open Test PiP Window</button>
+
+    <div id="output" style="margin-top: 20px;"></div>
+
+    <script>
+        // Display browser info
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        const chromeMatch = navigator.userAgent.match(/Chrome\/(\d+)/);
+        document.getElementById('chromeVersion').textContent = chromeMatch ? chromeMatch[1] : 'Not Chrome';
+
+        // Check API support
+        const statusDiv = document.getElementById('status');
+        const testBtn = document.getElementById('testBtn');
+        const outputDiv = document.getElementById('output');
+
+        function log(message, isError = false) {
+            const p = document.createElement('p');
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            p.style.color = isError ? 'red' : 'green';
+            outputDiv.appendChild(p);
+        }
+
+        if ('documentPictureInPicture' in window) {
+            statusDiv.className = 'status supported';
+            statusDiv.innerHTML = `
+                ✅ Document Picture-in-Picture API is SUPPORTED!<br>
+                <small>You can use always-on-top controls</small>
+            `;
+            testBtn.disabled = false;
+            log('API detected successfully');
+        } else {
+            statusDiv.className = 'status not-supported';
+            statusDiv.innerHTML = `
+                ❌ Document Picture-in-Picture API is NOT SUPPORTED<br>
+                <small>Requires Chrome 116+ or Edge 116+</small><br>
+                <small>Current browser: ${navigator.userAgent.includes('Chrome') ? 'Chrome ' + (chromeMatch ? chromeMatch[1] : 'Unknown') : 'Not Chrome'}</small>
+            `;
+            log('API not available', true);
+        }
+
+        testBtn.addEventListener('click', async () => {
+            try {
+                log('Attempting to open PiP window...');
+
+                const pipWindow = await window.documentPictureInPicture.requestWindow({
+                    width: 400,
+                    height: 200,
+                });
+
+                log('PiP window opened successfully!');
+
+                // Add content to PiP window
+                pipWindow.document.body.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    font-family: system-ui, -apple-system, sans-serif;
+                    margin: 0;
+                `;
+
+                const container = pipWindow.document.createElement('div');
+                container.style.textAlign = 'center';
+                container.innerHTML = `
+                    <h2 style="margin: 0 0 20px 0;">✅ PiP Window Active!</h2>
+                    <p style="margin: 0 0 20px 0;">This window stays on top</p>
+                    <button id="closeBtn" style="
+                        padding: 12px 24px;
+                        background: white;
+                        color: #667eea;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 16px;
+                        font-weight: bold;
+                        cursor: pointer;
+                    ">Close Window</button>
+                `;
+
+                pipWindow.document.body.appendChild(container);
+
+                // Add close button handler
+                const closeBtn = pipWindow.document.getElementById('closeBtn');
+                closeBtn.addEventListener('click', () => {
+                    pipWindow.close();
+                });
+
+                // Handle window close
+                pipWindow.addEventListener('pagehide', () => {
+                    log('PiP window closed');
+                });
+
+                log('PiP window content rendered');
+            } catch (error) {
+                log(`Error: ${error.message}`, true);
+                console.error('PiP Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

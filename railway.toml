@@ -1,7 +1,0 @@
-[build]
-root = "backend"
-builder = "Nixpacks"
-buildCommand = "npm run build"
-
-[start]
-cmd = "npm run start:migrate"

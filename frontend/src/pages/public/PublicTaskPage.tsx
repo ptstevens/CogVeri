@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
@@ -17,6 +17,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { magicLinkService, ClaimTaskDto } from '../../services/magicLink.service';
 import { recordingService } from '../../services/recording.service';
+import { RecordingPiPControls } from '../../components/RecordingPiPControls';
+import { useRecordingKeyboardShortcuts } from '../../hooks/useRecordingKeyboardShortcuts';
 import toast from 'react-hot-toast';
 
 type PageState = 'loading' | 'landing' | 'claim' | 'task' | 'error';
@@ -37,11 +39,17 @@ const PublicTaskPage: React.FC = () => {
     email: '',
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [includeAudio, setIncludeAudio] = useState(true);
-  const [durationInterval, setDurationInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Use refs for interval IDs to ensure synchronous access and proper cleanup
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+  const [countdown, setCountdown] = useState<number | null>(null); // Countdown before recording starts
 
   // Fetch task data on mount
   const { data, isLoading, error } = useQuery({
@@ -82,14 +90,34 @@ const PublicTaskPage: React.FC = () => {
     }
   }, [data, isLoading, error]);
 
-  // Cleanup interval on unmount
+  // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
-      if (durationInterval) {
-        clearInterval(durationInterval);
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [durationInterval]);
+  }, []);
+
+  // DEBUG: Log component mount/unmount
+  useEffect(() => {
+    console.log('🔵 PublicTaskPage component MOUNTED');
+    return () => {
+      console.log('🔴 PublicTaskPage component UNMOUNTED');
+    };
+  }, []);
+
+  // DEBUG: Log whenever recordingDuration changes
+  useEffect(() => {
+    console.log('📊 recordingDuration changed to:', recordingDuration);
+    if (recordingDuration === 0 && recordedBlob) {
+      console.error('🚨 BUG: Duration reset to 0 even though we have a recorded blob!');
+      console.trace('Stack trace for duration reset:');
+    }
+  }, [recordingDuration, recordedBlob]);
 
   // Claim task mutation
   const claimMutation = useMutation({
@@ -107,28 +135,67 @@ const PublicTaskPage: React.FC = () => {
     },
   });
 
-  // Start recording
+  // Start recording with 5-second countdown
   const handleStartRecording = async () => {
+    console.log('🎬 === START RECORDING CALLED ===');
+    console.trace('Stack trace for START RECORDING:');
+
+    // Guard: Don't start if already recording or have recorded content
+    if (isRecording || recordedBlob) {
+      console.log('❌ Ignoring start recording - already recording or have recorded content');
+      return;
+    }
+
     try {
       const supportedTypes = recordingService.getSupportedMimeTypes();
+
+      // Start media capture (screen picker will appear)
       await recordingService.startRecording({
         video: true,
         audio: includeAudio,
         mimeType: supportedTypes[0],
         videoBitsPerSecond: 2500000,
       });
-      setIsRecording(true);
-      setRecordingDuration(0); // Reset duration
-      toast.success('Recording started');
 
-      // Update duration every second
+      // Show 5-second countdown and set recording to true immediately
+      // This allows PiP to open while user gesture is still fresh
+      toast.success('Screen selected! Starting in 5 seconds...');
+      setCountdown(5);
+      setIsRecording(true); // Set immediately to trigger PiP auto-open
+      setRecordingDuration(0);
+
+      // Countdown from 5 to 1
+      let count = 5;
       const interval = setInterval(() => {
-        const duration = recordingService.getRecordingDuration();
-        setRecordingDuration(duration);
+        count--;
+        setCountdown(count);
+        if (count === 0) {
+          clearInterval(interval);
+          countdownIntervalRef.current = null;
+          setCountdown(null);
+
+          // Reset the recording start time NOW (after countdown completes)
+          // This ensures the countdown time is not included in the recording duration
+          recordingService.resetStartTime();
+
+          toast.success('🎬 Recording started!');
+
+          // Update duration every second
+          const durationTimer = setInterval(() => {
+            const duration = recordingService.getRecordingDuration();
+            console.log('⏱️ Interval firing - setting duration to:', duration);
+            setRecordingDuration(duration);
+          }, 1000);
+
+          durationIntervalRef.current = durationTimer;
+        }
       }, 1000);
 
-      setDurationInterval(interval);
+      // Store the countdown interval so it can be cleared if stopped early
+      countdownIntervalRef.current = interval;
     } catch (error: any) {
+      setCountdown(null);
+      setIsRecording(false);
       if (error.name === 'NotAllowedError') {
         toast.error('Screen recording permission denied');
       } else {
@@ -137,27 +204,77 @@ const PublicTaskPage: React.FC = () => {
     }
   };
 
+  // Pause recording
+  const handlePauseRecording = () => {
+    recordingService.pauseRecording();
+    setIsPaused(true);
+    toast.success('Recording paused');
+  };
+
+  // Resume recording
+  const handleResumeRecording = () => {
+    recordingService.resumeRecording();
+    setIsPaused(false);
+    toast.success('Recording resumed');
+  };
+
   // Stop recording
   const handleStopRecording = async () => {
     try {
-      // Clear the duration interval
-      if (durationInterval) {
-        clearInterval(durationInterval);
-        setDurationInterval(null);
+      console.log('=== STOP RECORDING CALLED ===');
+
+      // Get final duration FIRST before stopping anything
+      const finalDuration = recordingService.getRecordingDuration();
+      console.log('Final duration from recording service:', finalDuration);
+
+      // CRITICAL: Clear duration interval FIRST - using ref ensures synchronous access
+      if (durationIntervalRef.current) {
+        console.log('Clearing duration interval:', durationIntervalRef.current);
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
       }
 
-      // Get final duration before stopping
-      const finalDuration = recordingService.getRecordingDuration();
+      // Clear countdown interval too
+      if (countdownIntervalRef.current) {
+        console.log('Clearing countdown interval:', countdownIntervalRef.current);
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+
+      // Set isRecording to false to prevent PiP auto-open from triggering
+      setIsRecording(false);
+      setIsPaused(false);
+
+      // Clear countdown display
+      setCountdown(null);
+
+      // Stop the recording and get the blob
+      console.log('Stopping recording service...');
+      const blob = await recordingService.stopRecording();
+      console.log('Recording service stopped, blob size:', blob.size);
+
+      // Set the final states
+      console.log('Setting recordedBlob and recordingDuration:', finalDuration);
+      setRecordedBlob(blob);
       setRecordingDuration(finalDuration);
 
-      const blob = await recordingService.stopRecording();
-      setRecordedBlob(blob);
-      setIsRecording(false);
+      console.log('=== STOP RECORDING COMPLETE ===');
       toast.success(`Recording stopped (${Math.round(finalDuration)}s)`);
     } catch (error) {
+      console.error('Error in handleStopRecording:', error);
       toast.error('Failed to stop recording');
     }
   };
+
+  // Enable global keyboard shortcuts for recording controls
+  useRecordingKeyboardShortcuts({
+    isRecording: isRecording && !recordedBlob,
+    isPaused: isPaused,
+    onPause: handlePauseRecording,
+    onResume: handleResumeRecording,
+    onStop: handleStopRecording,
+    enabled: true,
+  });
 
   // Upload recording
   const handleUploadRecording = async () => {
@@ -640,6 +757,31 @@ const PublicTaskPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Countdown Overlay */}
+        {countdown !== null && countdown > 0 && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div className="text-center">
+              <div className="text-9xl font-bold text-white mb-4 animate-pulse">
+                {countdown}
+              </div>
+              <p className="text-2xl text-white">Recording starts in...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Picture-in-Picture Controls - Always-on-top global controls */}
+        {isRecording && !recordedBlob && (
+          <RecordingPiPControls
+            isRecording={isRecording}
+            isPaused={isPaused}
+            duration={recordingDuration}
+            onPause={handlePauseRecording}
+            onResume={handleResumeRecording}
+            onStop={handleStopRecording}
+            autoOpen={true}
+          />
+        )}
       </div>
     );
   }

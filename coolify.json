@@ -1,0 +1,211 @@
+{
+  "version": "1.0",
+  "applications": [
+    {
+      "name": "cogveri-backend",
+      "description": "CogVeri Backend API Server",
+      "type": "docker",
+      "buildPack": "nodejs",
+      "dockerComposeFile": "docker-compose.prod.yml",
+      "port": 3000,
+      "buildCommand": "npm ci && npm run build:backend",
+      "startCommand": "npm start",
+      "environmentVariables": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "LOG_LEVEL": "info"
+      },
+      "env": {
+        "DATABASE_URL": {
+          "required": true,
+          "description": "PostgreSQL connection string"
+        },
+        "JWT_SECRET": {
+          "required": true,
+          "description": "JWT access token signing secret (min 32 characters)"
+        },
+        "JWT_REFRESH_SECRET": {
+          "required": true,
+          "description": "JWT refresh token signing secret (min 32 characters, must be different from JWT_SECRET)"
+        },
+        "CORS_ORIGIN": {
+          "required": true,
+          "default": "https://cogveri.com"
+        },
+        "FRONTEND_URL": {
+          "required": true,
+          "default": "https://cogveri.com"
+        },
+        "AWS_ACCESS_KEY_ID": {
+          "required": true,
+          "description": "Cloudflare R2 Access Key"
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+          "required": true,
+          "description": "Cloudflare R2 Secret Key"
+        },
+        "AWS_ENDPOINT_URL": {
+          "required": true,
+          "description": "Cloudflare R2 endpoint URL"
+        },
+        "AWS_S3_BUCKET": {
+          "required": true,
+          "default": "cogveri-production"
+        },
+        "EMAIL_HOST": {
+          "required": true,
+          "description": "SMTP host for email notifications"
+        },
+        "EMAIL_PORT": {
+          "required": true,
+          "default": "587"
+        },
+        "EMAIL_USER": {
+          "required": true,
+          "description": "SMTP username"
+        },
+        "EMAIL_PASSWORD": {
+          "required": true,
+          "description": "SMTP password"
+        },
+        "EMAIL_FROM": {
+          "required": true,
+          "default": "noreply@cogveri.com"
+        },
+        "REDIS_HOST": {
+          "required": true,
+          "default": "redis"
+        },
+        "REDIS_PORT": {
+          "required": false,
+          "default": "6379"
+        },
+        "REDIS_PASSWORD": {
+          "required": false,
+          "description": "Redis password if authentication enabled"
+        }
+      },
+      "healthCheck": {
+        "enabled": true,
+        "endpoint": "/api/health",
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      },
+      "rollback": {
+        "enabled": true,
+        "automatic": true,
+        "retention": 5
+      },
+      "monitoring": {
+        "enabled": true,
+        "metrics": ["cpu", "memory", "disk", "network"],
+        "alerting": {
+          "email": true,
+          "slack": true
+        }
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "type": "database",
+      "version": "15",
+      "persistence": {
+        "enabled": true,
+        "size": "100Gi"
+      },
+      "backup": {
+        "enabled": true,
+        "schedule": "0 2 * * *",
+        "retention": 30
+      }
+    },
+    {
+      "name": "redis",
+      "type": "cache",
+      "version": "7",
+      "persistence": {
+        "enabled": true,
+        "size": "10Gi"
+      }
+    }
+  ],
+  "networking": {
+    "domain": "cogveri.com",
+    "ssl": {
+      "enabled": true,
+      "provider": "letsencrypt",
+      "autoRenew": true
+    },
+    "cdn": {
+      "enabled": true,
+      "provider": "cloudflare",
+      "options": {
+        "caching": true,
+        "minify": true,
+        "rocketLoader": true
+      }
+    }
+  },
+  "deployment": {
+    "strategy": "rolling",
+    "maxSurge": 1,
+    "maxUnavailable": 0,
+    "progressDeadlineSeconds": 600
+  },
+  "scaling": {
+    "enabled": true,
+    "minReplicas": 2,
+    "maxReplicas": 10,
+    "metrics": {
+      "cpu": 70,
+      "memory": 80
+    }
+  },
+  "logging": {
+    "enabled": true,
+    "driver": "json-file",
+    "options": {
+      "max-size": "10m",
+      "max-file": "3"
+    },
+    "aggregation": {
+      "enabled": true,
+      "service": "cloudflare-logpush"
+    }
+  },
+  "security": {
+    "firewall": {
+      "enabled": true,
+      "rules": [
+        {
+          "type": "rate-limit",
+          "threshold": 100,
+          "window": 60,
+          "action": "block"
+        },
+        {
+          "type": "geo-block",
+          "countries": ["KP", "IR", "SY"]
+        }
+      ]
+    },
+    "secrets": {
+      "rotationDays": 90,
+      "backup": true
+    },
+    "compliance": {
+      "gdpr": true,
+      "hipaa": false,
+      "soc2": true
+    }
+  },
+  "backups": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention": 30,
+    "provider": "cloudflare-r2"
+  }
+}

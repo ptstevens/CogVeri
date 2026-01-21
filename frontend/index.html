@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Content Security Policy - Primary CSP is set via HTTP header in vercel.json for production -->
+    <!-- This meta tag serves as a fallback for local development and non-Vercel environments -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https: http:; connect-src 'self' https://api.cogveri.com wss://api.cogveri.com https://api-staging.cogveri.com wss://api-staging.cogveri.com https://www.google-analytics.com https://vitals.vercel-insights.com https://*.r2.cloudflarestorage.com https://vercel.live https://vercel.com; media-src 'self' blob: https:; object-src 'none'; frame-src 'self' https://accounts.google.com https://vercel.live https://vercel.com; base-uri 'self'; form-action 'self'"
+    />
+
+    <!-- Primary Meta Tags -->
+    <title>CogVeri - Video-Based Skills Verification Platform</title>
+    <meta name="title" content="CogVeri - Video-Based Skills Verification Platform" />
+    <meta
+      name="description"
+      content="CogVeri is an enterprise video-based knowledge verification platform. Send magic links, recipients record video demonstrations, and you verify skills - no accounts needed for submissions."
+    />
+    <meta name="author" content="CogVeri" />
+    <meta
+      name="keywords"
+      content="skills verification, video assessment, training verification, compliance recording, magic links, knowledge verification"
+    />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.cogveri.com/" />
+    <meta property="og:title" content="CogVeri - Video-Based Skills Verification Platform" />
+    <meta
+      property="og:description"
+      content="Send a magic link. They record. You verify. No accounts needed for submissions. Enterprise video-based knowledge verification platform."
+    />
+    <meta property="og:image" content="https://www.cogveri.com/og-image.png" />
+    <meta property="og:site_name" content="CogVeri" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://www.cogveri.com/" />
+    <meta property="twitter:title" content="CogVeri - Video-Based Skills Verification Platform" />
+    <meta
+      property="twitter:description"
+      content="Send a magic link. They record. You verify. No accounts needed for submissions."
+    />
+    <meta property="twitter:image" content="https://www.cogveri.com/og-image.png" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#1e3a5f" />
+
+    <!-- Canonical URL - must match where site is served (www subdomain) -->
+    <link rel="canonical" href="https://www.cogveri.com/" />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Static content for search engines and crawlers that don't execute JavaScript -->
+    <noscript>
+      <div
+        style="
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 40px 20px;
+          font-family:
+            system-ui,
+            -apple-system,
+            sans-serif;
+        "
+      >
+        <header style="text-align: center; margin-bottom: 40px">
+          <img
+            src="/cogveri-logo-full.png"
+            alt="CogVeri Logo"
+            style="max-width: 300px; height: auto"
+          />
+          <h1 style="font-size: 2.5rem; color: #1e3a5f; margin: 20px 0">
+            CogVeri - Knowledge, Verified.
+          </h1>
+          <p style="font-size: 1.25rem; color: #64748b">Video-Based Skills Verification Platform</p>
+        </header>
+
+        <main>
+          <section style="margin-bottom: 40px">
+            <h2 style="color: #1e3a5f">What is CogVeri?</h2>
+            <p style="color: #475569; line-height: 1.7">
+              CogVeri is an enterprise video-based knowledge verification platform designed for
+              training teams, HR departments, compliance officers, and educators. Our magic link
+              technology allows you to assess skills and verify competency without requiring
+              recipients to create accounts.
+            </p>
+          </section>
+
+          <section style="margin-bottom: 40px">
+            <h2 style="color: #1e3a5f">How It Works</h2>
+            <ol style="color: #475569; line-height: 1.7">
+              <li>
+                <strong>Send a Magic Link</strong> - Create a task and send a unique link to
+                candidates, trainees, or students.
+              </li>
+              <li>
+                <strong>They Click & Record</strong> - Recipients open the link and record their
+                screen directly in the browser. No signup required.
+              </li>
+              <li>
+                <strong>You Review & Verify</strong> - Watch submissions with auto-generated
+                transcripts, then approve or request re-demonstrations.
+              </li>
+            </ol>
+          </section>
+
+          <section style="margin-bottom: 40px">
+            <h2 style="color: #1e3a5f">Key Features</h2>
+            <ul style="color: #475569; line-height: 1.7">
+              <li>Magic Links - No accounts needed for submissions</li>
+              <li>Browser-based recording - No software to install</li>
+              <li>Auto-transcription - AI-powered speech-to-text</li>
+              <li>Review workflows - Approve, reject, or request re-takes</li>
+              <li>Enterprise ready - SSO, audit logs, compliance features</li>
+            </ul>
+          </section>
+
+          <section style="margin-bottom: 40px">
+            <h2 style="color: #1e3a5f">Use Cases</h2>
+            <ul style="color: #475569; line-height: 1.7">
+              <li>Training & Onboarding - Verify employee skills and training completion</li>
+              <li>Hiring & Recruitment - Assess candidates with video demonstrations</li>
+              <li>Compliance - Document proof of competency for regulatory requirements</li>
+              <li>Education - Collect and grade video assignments from students</li>
+            </ul>
+          </section>
+        </main>
+
+        <footer
+          style="
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+            margin-top: 40px;
+            text-align: center;
+          "
+        >
+          <nav style="margin-bottom: 20px">
+            <a href="/privacy" style="color: #6366f1; margin: 0 15px">Privacy Policy</a>
+            <a href="/terms" style="color: #6366f1; margin: 0 15px">Terms of Service</a>
+            <a href="/pricing" style="color: #6366f1; margin: 0 15px">Pricing</a>
+            <a href="/login" style="color: #6366f1; margin: 0 15px">Sign In</a>
+          </nav>
+          <p style="color: #94a3b8; font-size: 0.875rem">
+            &copy; 2026 CogVeri. All rights reserved.<br />
+            Contact: support@cogveri.com
+          </p>
+        </footer>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+<svg width="1128" height="191" viewBox="0 0 1128 191" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient -->
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0F766E"/>
+      <stop offset="50%" style="stop-color:#0D9488"/>
+      <stop offset="100%" style="stop-color:#0F766E"/>
+    </linearGradient>
+
+    <!-- Decorative wave pattern -->
+    <pattern id="waves" x="0" y="0" width="100" height="20" patternUnits="userSpaceOnUse">
+      <path d="M0 10 Q25 0, 50 10 T100 10" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="none"/>
+    </pattern>
+
+    <!-- Dot grid pattern -->
+    <pattern id="dots" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="15" cy="15" r="1.5" fill="rgba(255,255,255,0.1)"/>
+    </pattern>
+
+    <!-- Glow effect for logo -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1128" height="191" fill="url(#mainGradient)"/>
+
+  <!-- Decorative patterns -->
+  <rect width="1128" height="191" fill="url(#waves)"/>
+  <rect width="1128" height="191" fill="url(#dots)"/>
+
+  <!-- Decorative geometric shapes -->
+  <g opacity="0.1">
+    <!-- Left side decoration -->
+    <circle cx="80" cy="95" r="120" fill="none" stroke="white" stroke-width="1"/>
+    <circle cx="80" cy="95" r="80" fill="none" stroke="white" stroke-width="1"/>
+
+    <!-- Right side decoration -->
+    <circle cx="1048" cy="95" r="120" fill="none" stroke="white" stroke-width="1"/>
+    <circle cx="1048" cy="95" r="80" fill="none" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- Small cog icon (left side) -->
+  <g transform="translate(180, 95) scale(0.4)" opacity="0.9" filter="url(#glow)">
+    <path d="M0,-50 L6,-48 L9,-41 L14,-43 L20,-37 L17,-31 L23,-27 L29,-31 L36,-27 L31,-20 L37,-16 L41,-20 L47,-13 L41,-9 L43,-1 L49,0 L49,9 L43,10 L41,17 L47,21 L41,29 L36,24 L31,31 L37,37 L29,41 L23,35 L17,40 L20,47 L11,49 L9,41 L0,44 L-9,41 L-11,49 L-20,47 L-17,40 L-23,35 L-29,41 L-37,37 L-31,31 L-36,24 L-41,29 L-47,21 L-41,17 L-43,10 L-49,9 L-49,0 L-43,-1 L-41,-9 L-47,-13 L-41,-20 L-37,-16 L-31,-20 L-36,-27 L-29,-31 L-23,-27 L-17,-31 L-20,-37 L-14,-43 L-9,-41 L-6,-48 Z"
+          fill="white"/>
+    <circle cx="0" cy="0" r="20" fill="url(#mainGradient)"/>
+    <path d="M-6,-8 L8,0 L-6,8 Z" fill="white"/>
+  </g>
+
+  <!-- Company name -->
+  <text x="564" y="85"
+        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="48"
+        font-weight="700"
+        fill="white"
+        text-anchor="middle"
+        letter-spacing="2"
+        filter="url(#glow)">CogVeri</text>
+
+  <!-- Tagline -->
+  <text x="564" y="125"
+        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="18"
+        font-weight="400"
+        fill="rgba(255,255,255,0.9)"
+        text-anchor="middle"
+        letter-spacing="3">AI-POWERED VIDEO VERIFICATION</text>
+
+  <!-- Decorative line under tagline -->
+  <line x1="464" y1="145" x2="664" y2="145" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+  <!-- Small decorative elements -->
+  <g fill="rgba(255,255,255,0.15)">
+    <rect x="300" y="160" width="40" height="3" rx="1.5"/>
+    <rect x="788" y="160" width="40" height="3" rx="1.5"/>
+  </g>
+</svg>

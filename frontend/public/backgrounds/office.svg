@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="wall" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8e4df"/>
+      <stop offset="100%" style="stop-color:#d4cfc8"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b7355"/>
+      <stop offset="100%" style="stop-color:#6d5a42"/>
+    </linearGradient>
+  </defs>
+  <!-- Wall -->
+  <rect width="1280" height="720" fill="url(#wall)"/>
+  <!-- Window frame -->
+  <rect x="800" y="80" width="400" height="300" fill="#87CEEB" rx="5"/>
+  <rect x="810" y="90" width="180" height="135" fill="#B0E0E6"/>
+  <rect x="1000" y="90" width="180" height="135" fill="#B0E0E6"/>
+  <rect x="810" y="235" width="180" height="135" fill="#B0E0E6"/>
+  <rect x="1000" y="235" width="180" height="135" fill="#B0E0E6"/>
+  <rect x="990" y="80" width="20" height="300" fill="#5a5a5a"/>
+  <rect x="800" y="220" width="400" height="15" fill="#5a5a5a"/>
+  <!-- Desk -->
+  <rect x="0" y="550" width="1280" height="170" fill="url(#wood)"/>
+  <!-- Plant -->
+  <ellipse cx="150" cy="520" rx="60" ry="40" fill="#228B22"/>
+  <ellipse cx="130" cy="500" rx="40" ry="30" fill="#32CD32"/>
+  <ellipse cx="170" cy="490" rx="35" ry="25" fill="#2E8B57"/>
+  <rect x="130" y="540" width="40" height="60" fill="#8B4513"/>
+  <!-- Lamp -->
+  <rect x="1100" y="400" width="8" height="150" fill="#333"/>
+  <ellipse cx="1104" cy="400" rx="50" ry="25" fill="#f5f5dc"/>
+</svg>

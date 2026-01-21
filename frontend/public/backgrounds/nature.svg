@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#87CEEB"/>
+      <stop offset="60%" style="stop-color:#E0F6FF"/>
+      <stop offset="100%" style="stop-color:#B0E0E6"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50"/>
+      <stop offset="100%" style="stop-color:#2E7D32"/>
+    </linearGradient>
+    <linearGradient id="mountain" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6B8E23"/>
+      <stop offset="100%" style="stop-color:#556B2F"/>
+    </linearGradient>
+  </defs>
+  <!-- Sky -->
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <!-- Sun -->
+  <circle cx="1000" cy="120" r="60" fill="#FFD700" opacity="0.9"/>
+  <!-- Distant mountains -->
+  <polygon points="0,450 200,280 400,380 500,300 700,400 900,320 1100,380 1280,350 1280,500 0,500" fill="#9DC183"/>
+  <polygon points="0,500 300,350 500,420 700,350 900,400 1100,350 1280,420 1280,550 0,550" fill="url(#mountain)"/>
+  <!-- Rolling hills -->
+  <ellipse cx="200" cy="600" rx="400" ry="150" fill="#66BB6A"/>
+  <ellipse cx="800" cy="650" rx="500" ry="180" fill="#4CAF50"/>
+  <ellipse cx="1200" cy="620" rx="350" ry="140" fill="#81C784"/>
+  <!-- Grass -->
+  <rect x="0" y="580" width="1280" height="140" fill="url(#grass)"/>
+  <!-- Clouds -->
+  <ellipse cx="200" cy="100" rx="80" ry="40" fill="white" opacity="0.8"/>
+  <ellipse cx="260" cy="90" rx="60" ry="35" fill="white" opacity="0.8"/>
+  <ellipse cx="600" cy="150" rx="100" ry="45" fill="white" opacity="0.7"/>
+  <ellipse cx="680" cy="140" rx="70" ry="40" fill="white" opacity="0.7"/>
+</svg>

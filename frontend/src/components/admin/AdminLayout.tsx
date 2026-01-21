@@ -1,0 +1,84 @@
+import { NavLink, Outlet } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Building2,
+  CreditCard,
+  Settings,
+} from 'lucide-react';
+
+const adminNavItems = [
+  {
+    name: 'Dashboard',
+    href: '/admin',
+    icon: LayoutDashboard,
+    end: true, // Only match exact path
+  },
+  {
+    name: 'Organizations',
+    href: '/admin/organizations',
+    icon: Building2,
+  },
+  {
+    name: 'Pricing & Tiers',
+    href: '/admin/pricing',
+    icon: CreditCard,
+  },
+  {
+    name: 'Settings',
+    href: '/admin/settings',
+    icon: Settings,
+  },
+];
+
+export default function AdminLayout() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Admin Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary-600 p-2 rounded-lg">
+                <Settings className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">Super Admin</h1>
+                <p className="text-xs text-gray-500">System Management</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Admin Navigation Tabs */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-1 overflow-x-auto" aria-label="Admin navigation">
+            {adminNavItems.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`
+                }
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Page Content */}
+      <div className="max-w-7xl mx-auto">
+        <Outlet />
+      </div>
+    </div>
+  );
+}

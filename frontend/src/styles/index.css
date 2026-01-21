@@ -1,0 +1,192 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased text-gray-900 bg-gray-50;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply font-sans;
+  }
+
+  /* Refined scrollbar with brand colors */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-primary-400 transition-colors;
+  }
+}
+
+@layer components {
+  /* Enterprise Buttons - Updated with brand teal */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 border border-transparent shadow-sm hover:shadow-brand;
+  }
+
+  .btn-accent {
+    @apply bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500 border border-transparent shadow-sm hover:shadow-glow-orange;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus:ring-gray-200;
+  }
+
+  .btn-brand {
+    @apply bg-brand-navy text-white hover:bg-brand-navy-light focus:ring-primary-500 border border-transparent shadow-sm hover:shadow-md;
+  }
+
+  .btn-danger {
+    @apply bg-error-50 text-error-700 border border-error-50 hover:bg-error-50 hover:border-error-700 focus:ring-error-500;
+  }
+
+  .btn-danger-solid {
+    @apply bg-error text-white hover:bg-red-700 focus:ring-red-500 shadow-sm;
+  }
+
+  /* Enterprise Card */
+  .card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-100 flex items-center justify-between;
+  }
+
+  .card-body {
+    @apply p-6;
+  }
+
+  /* Brand-styled card with teal accent */
+  .card-brand {
+    @apply bg-white rounded-xl border-l-4 border-l-primary-500 border border-gray-200 shadow-sm overflow-hidden hover:shadow-brand transition-shadow duration-300;
+  }
+
+  /* Enterprise Input */
+  .input {
+    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200;
+  }
+
+  .input-error {
+    @apply border-error text-error-700 focus:ring-error-50 focus:border-error;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+
+  /* Status Badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset;
+  }
+
+  .badge-success {
+    @apply bg-success-50 text-success-700 ring-success-700/10;
+  }
+
+  .badge-warning {
+    @apply bg-warning-50 text-warning-700 ring-warning-700/10;
+  }
+
+  .badge-error {
+    @apply bg-error-50 text-error-700 ring-error-700/10;
+  }
+
+  .badge-info {
+    @apply bg-primary-50 text-primary-700 ring-primary-700/10;
+  }
+
+  .badge-accent {
+    @apply bg-accent-50 text-accent-700 ring-accent-700/10;
+  }
+
+  .badge-neutral {
+    @apply bg-gray-50 text-gray-600 ring-gray-500/10;
+  }
+
+  /* Brand Feature Card */
+  .feature-card {
+    @apply bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg hover:border-primary-200 transition-all duration-300;
+  }
+
+  .feature-card-dark {
+    @apply bg-brand-navy/5 rounded-2xl p-6 border border-brand-navy/10 hover:bg-brand-navy/10 transition-all duration-300;
+  }
+}
+
+@layer utilities {
+  /* Brand gradient text - teal to navy */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+  }
+
+  /* Brand gradient text - teal to orange (like the logo) */
+  .text-gradient-brand {
+    @apply bg-gradient-to-r from-primary-500 via-primary-400 to-accent-500 bg-clip-text text-transparent;
+  }
+
+  /* Navy gradient text */
+  .text-gradient-navy {
+    @apply bg-gradient-to-r from-brand-navy to-brand-navy-light bg-clip-text text-transparent;
+  }
+
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+
+  .glass-panel-dark {
+    @apply bg-brand-navy/70 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+
+  .spinner {
+    @apply animate-spin rounded-full border-2 border-primary-100 border-t-primary-600;
+  }
+
+  /* Animated gradient background */
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  /* Brand glow effect */
+  .glow-teal {
+    box-shadow: 0 0 40px rgba(13, 148, 136, 0.3);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 40px rgba(245, 158, 11, 0.3);
+  }
+
+  /* Gradient border utility */
+  .border-gradient {
+    border: 2px solid transparent;
+    background: linear-gradient(white, white) padding-box,
+                linear-gradient(135deg, #0d9488, #14b8a6, #f59e0b) border-box;
+  }
+}
+
+/* Keyframes for gradient animation */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}

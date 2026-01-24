@@ -182,6 +182,53 @@ export function MyFeature() {
 3. **Log SYSADMIN actions** - All grant/revoke operations should be logged
 4. **Primary Admin cannot be demoted** - Backend prevents removing SYSADMIN from `admin@cogveri.com`
 
+## Seed Files (IMPORTANT!)
+
+CogVeri has **THREE separate seed systems** that must be kept in sync when changing default user settings:
+
+| File | Purpose | When Used |
+|------|---------|-----------|
+| `backend/seeds/*.ts` | Development seeds | `npm run db:seed` locally |
+| `backend/run-seeds.js` | Production fresh seed | Coolify startup (if DB is empty) |
+| `backend/run-reset-prod.js` | Production wipe + reseed | `WIPE_DATABASE_ON_START=true` in Coolify |
+
+**⚠️ WARNING:** If you change SYSADMIN settings in one file, you MUST update ALL THREE files!
+
+### File Locations for User Seeds:
+
+**1. Development (`backend/seeds/01_users.ts`):**
+```typescript
+{
+  email: 'admin@cogveri.com',
+  name: 'Paul Stevens',
+  is_system_admin: true,
+  system_role: 'SUPER_ADMIN',
+  // ...
+}
+```
+
+**2. Production Fresh (`backend/run-seeds.js`):**
+```javascript
+{
+  email: 'admin@cogveri.com',
+  name: 'Paul Stevens',
+  is_system_admin: true,
+  system_role: 'SUPER_ADMIN',
+  // ...
+}
+```
+
+**3. Production Wipe (`backend/run-reset-prod.js`):**
+```javascript
+{
+  email: 'admin@cogveri.com',
+  name: 'Paul Stevens',
+  is_system_admin: true,
+  system_role: 'SUPER_ADMIN',
+  // ...
+}
+```
+
 ## Current SYSADMIN Users (Seed Data)
 
 | Email | Name | SYSADMIN | Notes |
@@ -217,3 +264,50 @@ const mockPrimaryAdmin = {
   system_role: 'SUPER_ADMIN',
 };
 ```
+
+## Troubleshooting
+
+### SYSADMIN settings not applying after deployment
+
+**Problem:** You updated seed files but users still have wrong SYSADMIN status after deploying with "Wipe DB".
+
+**Cause:** CogVeri has THREE seed files. You probably only updated one of them.
+
+**Solution:**
+1. Check which seed file Coolify is using:
+   - Fresh DB (empty) → `run-seeds.js`
+   - Wipe DB enabled → `run-reset-prod.js`
+2. Update ALL THREE seed files to match
+3. Redeploy
+
+**To verify current database state:**
+```bash
+ssh cogveri "sudo docker exec yc84w880s00084kw0ggsks0k psql -U postgres -d postgres -c \"SELECT email, name, is_system_admin, system_role FROM users WHERE email IN ('admin@cogveri.com', '***REDACTED_EMAIL***');\""
+```
+
+**To manually fix database (emergency):**
+```bash
+ssh cogveri "sudo docker exec yc84w880s00084kw0ggsks0k psql -U postgres -d postgres -c \"UPDATE users SET is_system_admin = false, system_role = NULL WHERE email = 'user@example.com';\""
+```
+
+### User doesn't see SYSADMIN UI after being granted access
+
+**Problem:** You granted SYSADMIN to a user but they don't see the System Admins nav item.
+
+**Cause:** The user needs to refresh their session to get the updated user data.
+
+**Solution:** Have the user log out and log back in, or do a hard refresh (Cmd+Shift+R).
+
+### "Not authorized" error on SYSADMIN endpoints
+
+**Problem:** A SYSADMIN user gets 403 errors on SYSADMIN-protected routes.
+
+**Possible causes:**
+1. User's `is_system_admin` is not `true` in database
+2. User's JWT doesn't include updated SYSADMIN status (need to re-login)
+3. Backend middleware not properly checking `is_system_admin` field
+
+**Debug steps:**
+1. Check database: `SELECT is_system_admin, system_role FROM users WHERE email = '...'`
+2. Check JWT payload in browser DevTools → Application → Local Storage
+3. Verify middleware is imported correctly in route file

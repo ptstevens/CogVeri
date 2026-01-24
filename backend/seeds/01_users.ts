@@ -41,6 +41,25 @@ export async function seed(knex: Knex): Promise<void> {
       })
     },
     {
+      id: '11111111-1111-1111-1111-111111111112',
+      email: 'cogveri.blitz180@passmail.net',
+      name: 'Paul Stevens',
+      password: superAdminPassword,
+      role: 'admin',
+      is_active: true,
+      is_system_admin: false,  // Not a SYSADMIN - can be granted later by admin@cogveri.com
+      organization_id: ORG_ID,
+      org_role: 'admin',
+      org_status: 'active',
+      department: 'Platform',
+      job_title: 'Administrator',
+      notification_preferences: JSON.stringify({
+        email: true,
+        slack: true,
+        inApp: true
+      })
+    },
+    {
       id: '22222222-2222-2222-2222-222222222222',
       email: 'manager@cogveri.app',
       name: 'Manager User',
@@ -149,6 +168,7 @@ export async function seed(knex: Knex): Promise<void> {
   const now = new Date();
   const memberships = [
     { user_id: '11111111-1111-1111-1111-111111111111', role: 'owner' },   // admin@cogveri.com
+    { user_id: '11111111-1111-1111-1111-111111111112', role: 'admin' },   // cogveri.blitz180@passmail.net
     { user_id: '22222222-2222-2222-2222-222222222222', role: 'admin' },   // manager@cogveri.app
     { user_id: '33333333-3333-3333-3333-333333333333', role: 'reviewer' }, // reviewer@cogveri.app
     { user_id: '44444444-4444-4444-4444-444444444444', role: 'limited' }, // employee1@cogveri.app

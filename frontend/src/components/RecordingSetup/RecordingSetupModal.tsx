@@ -330,7 +330,7 @@ export const RecordingSetupModal: React.FC<RecordingSetupModalProps> = ({
               </div>
               <span className="text-white font-medium">Screen Capture</span>
             </div>
-            <span className="text-xs text-green-400 bg-green-500/20 px-3 py-1.5 rounded-full font-medium">
+            <span className="text-xs text-primary-400 bg-primary-500/20 px-3 py-1.5 rounded-full font-medium">
               Always On
             </span>
           </div>
@@ -342,16 +342,16 @@ export const RecordingSetupModal: React.FC<RecordingSetupModalProps> = ({
               disabled={!webcamAvailable}
               className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${
                 webcamEnabled
-                  ? 'bg-green-600/15 border border-green-500/40 shadow-sm shadow-green-500/10'
+                  ? 'bg-primary-600/15 border border-primary-500/40 shadow-sm shadow-primary-500/10'
                   : 'bg-gray-800/60 border border-gray-700/50 hover:bg-gray-800 hover:border-gray-600'
               } ${!webcamAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  webcamEnabled ? 'bg-green-500/20' : 'bg-gray-700'
+                  webcamEnabled ? 'bg-primary-500/20' : 'bg-gray-700'
                 }`}>
                   {webcamEnabled ? (
-                    <Camera className="w-4 h-4 text-green-400" />
+                    <Camera className="w-4 h-4 text-primary-400" />
                   ) : (
                     <CameraOff className="w-4 h-4 text-gray-400" />
                   )}
@@ -367,7 +367,7 @@ export const RecordingSetupModal: React.FC<RecordingSetupModalProps> = ({
               </div>
               <span className={`text-sm font-medium px-3 py-1.5 rounded-full transition-colors ${
                 webcamEnabled
-                  ? 'bg-green-500 text-white'
+                  ? 'bg-primary-500 text-white'
                   : 'bg-gray-600 text-gray-300'
               }`}>
                 {webcamEnabled ? 'On' : 'Off'}
@@ -466,16 +466,16 @@ export const RecordingSetupModal: React.FC<RecordingSetupModalProps> = ({
               onClick={toggleAudio}
               className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${
                 audioEnabled
-                  ? 'bg-green-600/15 border border-green-500/40 shadow-sm shadow-green-500/10'
+                  ? 'bg-primary-600/15 border border-primary-500/40 shadow-sm shadow-primary-500/10'
                   : 'bg-gray-800/60 border border-gray-700/50 hover:bg-gray-800 hover:border-gray-600'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  audioEnabled ? 'bg-green-500/20' : 'bg-gray-700'
+                  audioEnabled ? 'bg-primary-500/20' : 'bg-gray-700'
                 }`}>
                   {audioEnabled ? (
-                    <Mic className="w-4 h-4 text-green-400" />
+                    <Mic className="w-4 h-4 text-primary-400" />
                   ) : (
                     <MicOff className="w-4 h-4 text-gray-400" />
                   )}
@@ -486,7 +486,7 @@ export const RecordingSetupModal: React.FC<RecordingSetupModalProps> = ({
               </div>
               <span className={`text-sm font-medium px-3 py-1.5 rounded-full transition-colors ${
                 audioEnabled
-                  ? 'bg-green-500 text-white'
+                  ? 'bg-primary-500 text-white'
                   : 'bg-gray-600 text-gray-300'
               }`}>
                 {audioEnabled ? 'On' : 'Off'}

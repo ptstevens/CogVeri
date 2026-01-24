@@ -292,4 +292,66 @@ export const AdminService = {
     const response = await api.delete(`/organizations/${organizationId}`);
     return response.data;
   },
+
+  // ============================================================
+  // SYSADMIN Management (Primary Admin Only)
+  // ============================================================
+
+  /**
+   * Get all system administrators
+   * Note: Only the primary admin (admin@cogveri.com) can manage other admins,
+   * but all system admins can view the list.
+   */
+  async getSystemAdmins(): Promise<{
+    admins: Array<{
+      id: string;
+      email: string;
+      name: string;
+      system_role: string;
+      system_admin_since: string;
+      created_at: string;
+      isPrimary: boolean;
+    }>;
+    canManageAdmins: boolean;
+  }> {
+    const response = await api.get('/admin/system-admins');
+    return response.data;
+  },
+
+  /**
+   * Grant SYSADMIN role to a user (Primary Admin Only)
+   * Only admin@cogveri.com can call this endpoint.
+   *
+   * @param userIdOrEmail - Either the user ID or email address
+   */
+  async grantSystemAdmin(userIdOrEmail: string): Promise<{
+    success: boolean;
+    message: string;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+    };
+  }> {
+    // Check if it looks like an email
+    const isEmail = userIdOrEmail.includes('@');
+    const payload = isEmail ? { email: userIdOrEmail } : { userId: userIdOrEmail };
+    const response = await api.post('/admin/system-admins', payload);
+    return response.data;
+  },
+
+  /**
+   * Revoke SYSADMIN role from a user (Primary Admin Only)
+   * Only admin@cogveri.com can call this endpoint.
+   * Cannot revoke from: the primary admin, or yourself
+   *
+   * @param userId - The user ID to revoke SYSADMIN from
+   */
+  async revokeSystemAdmin(userId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await api.delete(`/admin/system-admins/${userId}`);
+    return response.data;
+  },
 };

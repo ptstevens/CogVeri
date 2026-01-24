@@ -131,13 +131,14 @@ async function runSeeds() {
         {
           id: '8292c9df-7547-4277-86fd-8ca0127c5dd0',
           email: 'admin@cogveri.com',
-          name: 'System Admin',
+          name: 'Paul Stevens',
           password: adminPasswordHash,
           role: 'admin',
           auth_provider: 'local',
           organization_id: '12e89168-7afa-445c-9f90-ff23b4e37c59',
           org_role: 'owner',
           org_status: 'active',
+          is_system_admin: true,
           system_role: 'SUPER_ADMIN',
           is_active: true,
           created_at: new Date(),
@@ -146,15 +147,15 @@ async function runSeeds() {
         {
           id: '664be585-f639-4304-9871-be005ee34cac',
           email: '***REDACTED_EMAIL***',
-          name: 'Steve',
+          name: '***REDACTED_NAME***',
           password: stevePasswordHash,
-          role: 'employee',
+          role: 'admin',
           auth_provider: 'local',
           organization_id: '12e89168-7afa-445c-9f90-ff23b4e37c59',
-          invited_by: '12e89168-7afa-445c-9f90-ff23b4e37c59',
           org_role: 'admin',
           org_status: 'active',
-          system_role: 'SUPER_ADMIN',
+          is_system_admin: false,  // Not a SYSADMIN - can be granted later by admin@cogveri.com
+          system_role: null,
           is_active: true,
           created_at: new Date(),
           updated_at: new Date()
@@ -220,8 +221,8 @@ async function runSeeds() {
       console.log('   ✓ 3 rate limit tiers created (free, pro, enterprise)');
 
       console.log('\n✅ All seeds completed successfully!');
-      console.log('   📧 admin@cogveri.com - SUPER_ADMIN');
-      console.log('   📧 ***REDACTED_EMAIL*** - SUPER_ADMIN');
+      console.log('   📧 admin@cogveri.com (Paul Stevens) - SYSADMIN/Owner');
+      console.log('   📧 ***REDACTED_EMAIL*** (***REDACTED_NAME***) - Admin');
 
     } finally {
       await db.destroy();

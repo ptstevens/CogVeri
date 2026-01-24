@@ -849,7 +849,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('analysis_step_scores', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
     table.uuid('analysis_job_id').notNullable().references('id').inTable('analysis_jobs').onDelete('CASCADE');
-    table.uuid('rubric_step_id');
+    table.string('rubric_step_id', 50); // String IDs like "step-1", not UUIDs
     table.integer('step_order');
     table.string('step_title', 255);
     table.string('score', 50);

@@ -49,7 +49,7 @@ const PIP_STYLES = `
     --pip-text-muted: #9ca3af;
     --pip-accent: #ef4444;
     --pip-accent-glow: rgba(239, 68, 68, 0.5);
-    --pip-safe: #22c55e;
+    --pip-safe: #14b8a6;
     --pip-pause: #f59e0b;
     --pip-btn-bg: rgba(255, 255, 255, 0.1);
     --pip-btn-hover: rgba(255, 255, 255, 0.2);
@@ -224,7 +224,7 @@ const PIP_STYLES = `
   }
 
   .pip-btn-resume:hover {
-    background: #16a34a;
+    background: #0d9488;
   }
 
   .pip-btn-stop {
@@ -693,7 +693,7 @@ export const RecordingPiPControls: React.FC<RecordingPiPControlsProps> = ({
           </div>
 
           {safeMinutes !== undefined && (
-            <div className="flex items-center justify-center gap-2 text-green-400 text-sm mb-4">
+            <div className="flex items-center justify-center gap-2 text-primary-400 text-sm mb-4">
               <span>🔒</span>
               <span>{safeMinutes > 0 ? `${safeMinutes} min safely uploaded` : 'Starting upload...'}</span>
             </div>
@@ -704,7 +704,7 @@ export const RecordingPiPControls: React.FC<RecordingPiPControlsProps> = ({
               onClick={isPaused ? onResume : onPause}
               className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-all ${
                 isPaused
-                  ? 'bg-green-500 hover:bg-green-600'
+                  ? 'bg-primary-500 hover:bg-primary-600'
                   : 'bg-amber-500 hover:bg-amber-600'
               } text-white`}
             >
@@ -742,7 +742,7 @@ export const RecordingPiPControls: React.FC<RecordingPiPControlsProps> = ({
         </button>
       )}
       {pipActive && (
-        <div className="bg-gray-900 text-green-400 px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 border border-gray-700">
+        <div className="bg-gray-900 text-primary-400 px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 border border-gray-700">
           <span>✓</span>
           <span>Controls active</span>
         </div>

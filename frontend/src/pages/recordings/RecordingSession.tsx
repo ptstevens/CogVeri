@@ -259,8 +259,8 @@ const RecordingSession: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-screen p-8">
         <div className="max-w-2xl w-full bg-white rounded-lg border border-gray-200 shadow-lg p-8">
           <div className="flex flex-col items-center text-center">
-            <div className="bg-green-100 rounded-full p-4 mb-6">
-              <CheckCircle className="h-16 w-16 text-green-600" />
+            <div className="bg-primary-100 rounded-full p-4 mb-6">
+              <CheckCircle className="h-16 w-16 text-primary-600" />
             </div>
 
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -271,9 +271,9 @@ const RecordingSession: React.FC = () => {
               Thank you for completing this task. Your recording has been uploaded and will be reviewed shortly.
             </p>
 
-            <div className="w-full bg-blue-50 rounded-lg p-6 mb-8">
-              <h3 className="font-semibold text-blue-900 mb-3">What happens next?</h3>
-              <ul className="text-left text-sm text-blue-800 space-y-2">
+            <div className="w-full bg-primary-50 rounded-lg p-6 mb-8">
+              <h3 className="font-semibold text-primary-900 mb-3">What happens next?</h3>
+              <ul className="text-left text-sm text-primary-800 space-y-2">
                 <li className="flex items-start">
                   <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
                   <span>The task owner will review your recording</span>
@@ -372,7 +372,7 @@ const RecordingSession: React.FC = () => {
 
             {/* Upload progress indicator */}
             <div className="mt-6 bg-gray-800 rounded-lg p-4 max-w-md w-full">
-              <div className="flex items-center gap-2 text-green-400 mb-2">
+              <div className="flex items-center gap-2 text-primary-400 mb-2">
                 <Shield className="h-5 w-5" />
                 <span className="font-medium">
                   {chunkedRecording.progress.safeMinutes > 0
@@ -407,7 +407,7 @@ const RecordingSession: React.FC = () => {
 
             {/* Upload progress indicator */}
             <div className="mt-6 bg-gray-800 rounded-lg p-4 max-w-md w-full">
-              <div className="flex items-center gap-2 text-green-400 mb-2">
+              <div className="flex items-center gap-2 text-primary-400 mb-2">
                 <Shield className="h-5 w-5" />
                 <span className="font-medium">
                   {chunkedRecording.progress.safeMinutes} min safely uploaded
@@ -479,7 +479,7 @@ const RecordingSession: React.FC = () => {
               <>
                 <button
                   onClick={chunkedRecording.resumeRecording}
-                  className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
                   <Play className="h-5 w-5" />
                   Resume
@@ -509,7 +509,7 @@ const RecordingSession: React.FC = () => {
                 <button
                   onClick={uploadRecording}
                   disabled={isUploading || !taskId}
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                 >
                   {isUploading ? (
                     <>

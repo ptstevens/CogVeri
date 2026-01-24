@@ -16,6 +16,8 @@ import storageService from './storage.service';
 import { emailService } from './email.service';
 import pricingService from './pricing.service';
 import { transcriptionQueueHelpers } from '../queues/definitions/transcription.queue';
+import { transcodeQueueHelpers } from '../queues/definitions/transcode.queue';
+import { TranscodeQuality } from '../queues/types/job-types';
 // SECURITY: File validation using magic bytes instead of trusting client MIME types
 import { validateVideoFile } from '../utils/file-validation';
 // Storage path generation and bucket resolution
@@ -636,16 +638,17 @@ class MultipartUploadService {
 
       logger.info(`Recording ${session.recording_id} completed via multipart upload`);
 
+      // Get organization's subscription tier and slug for post-upload operations
+      const org = await db('organizations')
+        .where('id', organizationId)
+        .select('subscription_tier', 'slug')
+        .first();
+
+      const tier = org?.subscription_tier || 'free';
+      const orgSlug = org?.slug || 'unknown';
+
       // Auto-start transcription if organization has access to the feature
       try {
-        // Get organization's subscription tier and slug
-        const org = await db('organizations')
-          .where('id', organizationId)
-          .select('subscription_tier', 'slug')
-          .first();
-
-        const tier = org?.subscription_tier || 'free';
-        const orgSlug = org?.slug || 'unknown';
         const hasTranscription = pricingService.hasFeatureAccess(tier, 'basicTranscription');
 
         if (hasTranscription) {
@@ -672,6 +675,23 @@ class MultipartUploadService {
       } catch (transcriptionError) {
         // Don't fail the upload if transcription queueing fails
         logger.error('Failed to queue auto-transcription:', transcriptionError);
+      }
+
+      // Queue MP4 transcoding with faststart for instant seeking
+      // This is essential for video playback - without it, timeline seeking won't work
+      try {
+        const transcodeJob = await transcodeQueueHelpers.queueTranscode({
+          recordingId: session.recording_id!,
+          inputFileUrl: fileUrl,
+          organizationId,
+          orgSlug,
+          quality: TranscodeQuality.MEDIUM,
+          outputFormat: 'mp4',
+        });
+        logger.info(`Transcode job queued for recording ${session.recording_id}: jobId=${transcodeJob?.id}`);
+      } catch (transcodeError) {
+        // Don't fail the upload if transcode queueing fails
+        logger.error('Failed to queue transcode:', transcodeError);
       }
 
       return {
@@ -914,14 +934,28 @@ class MultipartUploadService {
    */
   private getFileExtension(mimeType: string): string {
     const mimeToExt: Record<string, string> = {
-      'video/webm': 'webm',
+      // MP4 formats (preferred for Chrome 126+)
       'video/mp4': 'mp4',
+      'video/mp4;codecs=avc1.640028,mp4a.40.2': 'mp4',  // H.264 High Profile
+      'video/mp4;codecs=avc1.4d0028,mp4a.40.2': 'mp4',  // H.264 Main Profile
+      'video/mp4;codecs=avc1.42e01e,mp4a.40.2': 'mp4',  // H.264 Baseline Profile
+      // WebM formats (fallback for Firefox)
+      'video/webm': 'webm',
       'video/webm;codecs=vp9,opus': 'webm',
       'video/webm;codecs=vp8,opus': 'webm',
       'video/webm;codecs=h264,opus': 'webm',
     };
 
-    return mimeToExt[mimeType] || 'webm';
+    // Check for exact match first, then try base MIME type
+    if (mimeToExt[mimeType]) {
+      return mimeToExt[mimeType];
+    }
+
+    // Handle unknown codec variants by checking base type
+    if (mimeType.startsWith('video/mp4')) return 'mp4';
+    if (mimeType.startsWith('video/webm')) return 'webm';
+
+    return 'webm';
   }
 }
 

@@ -23,7 +23,7 @@ export async function seed(knex: Knex): Promise<void> {
     {
       id: '11111111-1111-1111-1111-111111111111',
       email: 'admin@cogveri.com',
-      name: 'System Administrator',
+      name: 'Paul Stevens',
       password: superAdminPassword,
       role: 'admin',
       is_active: true,
@@ -43,7 +43,7 @@ export async function seed(knex: Knex): Promise<void> {
     {
       id: '11111111-1111-1111-1111-111111111112',
       email: '***REDACTED_EMAIL***',
-      name: 'Paul Stevens',
+      name: '***REDACTED_NAME***',
       password: superAdminPassword,
       role: 'admin',
       is_active: true,

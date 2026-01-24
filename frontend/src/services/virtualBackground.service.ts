@@ -295,11 +295,13 @@ export class VirtualBackgroundProcessor {
     // MediaPipe runtime has CORS issues and WASM loading problems
     const model = bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation;
 
+    const modelType = this.capabilities.isIOSSafari ? 'landscape' : 'general';
     const segmenterConfig: any = {
       runtime: 'tfjs',
-      modelType: this.capabilities.isIOSSafari ? 'landscape' : 'general',
-      // 'landscape' is faster but lower quality - good for mobile
-      // 'general' is higher quality but slower - good for desktop
+      modelType,
+      // Self-host models to avoid external dependencies and CSP issues
+      // Models are served from /public/models/ folder (~325KB each)
+      modelUrl: `/models/selfie-segmentation/${modelType}/model.json`,
     };
 
     console.log('[VirtualBG] Creating segmenter with config:', segmenterConfig);

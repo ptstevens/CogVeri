@@ -78,7 +78,7 @@ export class AnalysisProcessor extends BaseProcessor<AnalysisJobData, AnalysisJo
         summary_text: result.summary.text,
         strengths: JSON.stringify(result.summary.strengths),
         improvements: JSON.stringify(result.summary.improvements),
-        processing_time_seconds: result.processingTimeMs / 1000,
+        processing_time_seconds: Math.round(result.processingTimeMs / 1000),
       });
 
       // Store step scores - PERFORMANCE FIX: batch insert instead of loop

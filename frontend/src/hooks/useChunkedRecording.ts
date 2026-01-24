@@ -157,22 +157,30 @@ export function useChunkedRecording(hookOptions: UseChunkedRecordingOptions = {}
 
   /**
    * Get supported MIME types
+   * Prefer MP4 (H.264) for better compatibility and faster post-processing.
+   * MP4 with faststart enables instant seeking without full re-encoding.
    */
   const getSupportedMimeType = useCallback((): string => {
     const types = [
+      // Prefer MP4 with H.264 High Profile + AAC audio (Chrome 126+, Safari, Edge)
+      'video/mp4;codecs=avc1.640028,mp4a.40.2',  // H.264 High Profile Level 4.0
+      'video/mp4;codecs=avc1.4d0028,mp4a.40.2',  // H.264 Main Profile Level 4.0
+      'video/mp4;codecs=avc1.42e01e,mp4a.40.2',  // H.264 Baseline Profile
+      'video/mp4',
+      // Fallback to WebM for older browsers (Firefox)
       'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
-      'video/webm;codecs=h264,opus',
       'video/webm',
-      'video/mp4',
     ];
 
     for (const type of types) {
       if (MediaRecorder.isTypeSupported(type)) {
+        console.log(`[Recording] Using MIME type: ${type}`);
         return type;
       }
     }
 
+    console.warn('[Recording] No preferred MIME type supported, using default webm');
     return 'video/webm';
   }, []);
 
@@ -285,10 +293,10 @@ export function useChunkedRecording(hookOptions: UseChunkedRecordingOptions = {}
       }
       streamRef.current = new MediaStream(tracks);
 
-      // Create MediaRecorder
+      // Create MediaRecorder with high quality settings for Gemini analysis
       const recorderOptions: MediaRecorderOptions = {
         mimeType,
-        videoBitsPerSecond: 1200000, // 1.2 Mbps
+        videoBitsPerSecond: 2500000, // 2.5 Mbps - sharp text for AI analysis
       };
 
       if (options.hasAudio && audioStream) {

@@ -65,6 +65,9 @@ export function buildSpeechAnalysisPrompt(
     isRequired: step.isRequired,
   }));
 
+  // Get actual step IDs for the example
+  const exampleStepId = stepsWithSpeechCriteria[0]?.id || 'step-1';
+
   return `## Transcript to Analyze
 
 ${transcriptText}
@@ -81,13 +84,17 @@ ${JSON.stringify(stepsJson, null, 2)}
 
 ## Instructions
 
-Analyze the transcript for each rubric step. Return a JSON object with this exact structure:
+Analyze the transcript for each rubric step. For each step in the "Rubric Steps to Evaluate" list above, create a result entry using the EXACT stepId from that step.
+
+IMPORTANT: Use the stepId values EXACTLY as they appear in the rubric steps above (e.g., "${exampleStepId}"). Do NOT generate your own IDs.
+
+Return a JSON object with this exact structure:
 
 \`\`\`json
 {
   "stepResults": [
     {
-      "stepId": "step-id",
+      "stepId": "${exampleStepId}",
       "score": "YES" | "PARTIAL" | "NO",
       "confidence": 0.0-1.0,
       "keywordsFound": ["keyword1", "keyword2"],
@@ -162,6 +169,16 @@ export function buildVisualAnalysisPrompt(
     s => s.visualCriteria?.expectedActions || []
   );
 
+  // Get actual step IDs for the example
+  const exampleStepId = stepsWithVisualCriteria[0]?.id || 'step-1';
+
+  // Build step info with IDs clearly shown
+  const stepsInfo = stepsWithVisualCriteria.map(step => `
+### Step ID: "${step.id}" - ${step.title}
+- Elements: ${step.visualCriteria?.expectedElements?.join(', ') || 'None'}
+- Actions: ${step.visualCriteria?.expectedActions?.join(', ') || 'None'}
+`).join('\n');
+
   return `## Frames to Analyze
 
 You are viewing ${frames.length} frames from a screen recording.
@@ -175,17 +192,15 @@ ${expectedElements.length > 0 ? expectedElements.map(e => `- ${e}`).join('\n') :
 
 ${expectedActions.length > 0 ? expectedActions.map(a => `- ${a}`).join('\n') : 'No specific actions specified'}
 
-## Rubric Steps
+## Rubric Steps (use these EXACT step IDs in your response)
 
-${stepsWithVisualCriteria.map(step => `
-### ${step.title}
-- Elements: ${step.visualCriteria?.expectedElements?.join(', ') || 'None'}
-- Actions: ${step.visualCriteria?.expectedActions?.join(', ') || 'None'}
-`).join('\n')}
+${stepsInfo}
 
 ## Instructions
 
-Analyze each frame and identify what you see. Return a JSON object with this exact structure:
+Analyze each frame and identify what you see. For the "stepMatches" array, use the EXACT stepId values from the rubric steps above (e.g., "${exampleStepId}"). Do NOT generate your own IDs.
+
+Return a JSON object with this exact structure:
 
 \`\`\`json
 {
@@ -211,7 +226,7 @@ Analyze each frame and identify what you see. Return a JSON object with this exa
   ],
   "stepMatches": [
     {
-      "stepId": "step-id",
+      "stepId": "${exampleStepId}",
       "matched": true | false,
       "matchedAt": 0.0,
       "elementsFound": ["element1"],

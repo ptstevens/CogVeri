@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { enhancedAuthenticate, EnhancedAuthRequest } from '../middleware/enhanced-auth.middleware';
-import { requireSystemAdmin, setTargetOrgContext } from '../middleware/system-admin.middleware';
+import { requireSystemAdmin, requirePrimaryAdmin, setTargetOrgContext, isPrimaryAdminEmail } from '../middleware/system-admin.middleware';
 import { adminController } from '../controllers/admin.controller';
 import { stripeSyncService } from '../services/stripe-sync.service';
 import { organizationService } from '../services/organization.service';
@@ -251,19 +251,25 @@ router.delete(
  * GET /api/admin/system-admins
  *
  * Returns list of all users with SUPER_ADMIN role
+ * Note: This endpoint is visible to all system admins, but only the
+ * primary admin (admin@cogveri.com) can grant/revoke SYSADMIN status.
  */
-router.get('/system-admins', async (_req: EnhancedAuthRequest, res: Response): Promise<void> => {
+router.get('/system-admins', async (req: EnhancedAuthRequest, res: Response): Promise<void> => {
   try {
     const admins = await db('users')
       .where('system_role', 'SUPER_ADMIN')
       .select('id', 'email', 'name', 'system_role', 'system_admin_since', 'created_at')
       .orderBy('system_admin_since', 'asc');
 
+    // Check if current user is the primary admin (can manage other admins)
+    const canManageAdmins = isPrimaryAdminEmail(req.user?.email || '');
+
     res.json({
       success: true,
-      admins: admins.map((admin, index) => ({
+      canManageAdmins, // Frontend uses this to show/hide management UI
+      admins: admins.map((admin) => ({
         ...admin,
-        isPrimary: index === 0, // First admin (by system_admin_since) is primary
+        isPrimary: isPrimaryAdminEmail(admin.email), // Primary is identified by email, not order
       })),
     });
   } catch (error) {
@@ -276,12 +282,14 @@ router.get('/system-admins', async (_req: EnhancedAuthRequest, res: Response): P
 });
 
 /**
- * Grant system admin role to a user (system admin only)
+ * Grant system admin role to a user (PRIMARY ADMIN ONLY)
  * POST /api/admin/system-admins
+ *
+ * IMPORTANT: Only admin@cogveri.com can grant SYSADMIN status
  *
  * Body: { userId: string } or { email: string }
  */
-router.post('/system-admins', async (req: EnhancedAuthRequest, res: Response): Promise<void> => {
+router.post('/system-admins', requirePrimaryAdmin, async (req: EnhancedAuthRequest, res: Response): Promise<void> => {
   try {
     const { userId, email } = req.body;
 
@@ -309,16 +317,17 @@ router.post('/system-admins', async (req: EnhancedAuthRequest, res: Response): P
       return;
     }
 
-    // Grant admin role
+    // Grant admin role - also set is_system_admin for backwards compatibility
     await db('users')
       .where('id', user.id)
       .update({
         system_role: 'SUPER_ADMIN',
+        is_system_admin: true,
         system_admin_since: new Date(),
         updated_at: new Date(),
       });
 
-    logger.info(`System admin granted to user ${user.id} (${user.email}) by admin ${req.user?.id}`);
+    logger.info(`System admin granted to user ${user.id} (${user.email}) by primary admin ${req.user?.id} (${req.user?.email})`);
 
     res.json({
       success: true,
@@ -339,12 +348,14 @@ router.post('/system-admins', async (req: EnhancedAuthRequest, res: Response): P
 });
 
 /**
- * Revoke system admin role from a user (system admin only)
+ * Revoke system admin role from a user (PRIMARY ADMIN ONLY)
  * DELETE /api/admin/system-admins/:userId
  *
- * Note: Cannot revoke from primary admin (first admin) or yourself
+ * IMPORTANT: Only admin@cogveri.com can revoke SYSADMIN status
+ *
+ * Note: Cannot revoke from primary admin (admin@cogveri.com) or yourself
  */
-router.delete('/system-admins/:userId', async (req: EnhancedAuthRequest, res: Response): Promise<void> => {
+router.delete('/system-admins/:userId', requirePrimaryAdmin, async (req: EnhancedAuthRequest, res: Response): Promise<void> => {
   try {
     const targetUserId = req.params.userId;
 
@@ -367,13 +378,8 @@ router.delete('/system-admins/:userId', async (req: EnhancedAuthRequest, res: Re
       return;
     }
 
-    // Check if primary admin (first by system_admin_since)
-    const primaryAdmin = await db('users')
-      .where('system_role', 'SUPER_ADMIN')
-      .orderBy('system_admin_since', 'asc')
-      .first();
-
-    if (primaryAdmin?.id === targetUserId) {
+    // Check if trying to revoke from primary admin (identified by email)
+    if (isPrimaryAdminEmail(user.email)) {
       res.status(400).json({
         success: false,
         message: 'Cannot revoke system admin from the primary admin',
@@ -381,16 +387,17 @@ router.delete('/system-admins/:userId', async (req: EnhancedAuthRequest, res: Re
       return;
     }
 
-    // Revoke admin role
+    // Revoke admin role - also clear is_system_admin for backwards compatibility
     await db('users')
       .where('id', targetUserId)
       .update({
         system_role: null,
+        is_system_admin: false,
         system_admin_since: null,
         updated_at: new Date(),
       });
 
-    logger.info(`System admin revoked from user ${targetUserId} (${user.email}) by admin ${req.user?.id}`);
+    logger.info(`System admin revoked from user ${targetUserId} (${user.email}) by primary admin ${req.user?.id} (${req.user?.email})`);
 
     res.json({
       success: true,

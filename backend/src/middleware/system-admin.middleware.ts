@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { EnhancedAuthRequest } from './enhanced-auth.middleware';
 import { logger } from '../utils/logger';
 import { db } from '../config/database';
+import { PRIMARY_ADMIN_EMAIL } from '../config/sysadmin';
 
 /**
  * System-Level Permission Middleware
@@ -28,30 +29,36 @@ export const isSystemAdmin = async (userId: string): Promise<boolean> => {
 };
 
 /**
- * Check if user is the primary system admin (the first/main admin account)
+ * Check if user is the primary system admin (admin@cogveri.com)
+ *
+ * The primary admin is identified by their email address, NOT by being
+ * the first admin (by system_admin_since). This is a security measure
+ * to ensure only the designated master account can grant/revoke SYSADMIN.
  */
 export const isPrimarySystemAdmin = async (userId: string): Promise<boolean> => {
   try {
     const user = await db('users')
       .where('id', userId)
       .where('system_role', 'SUPER_ADMIN')
-      .select('email', 'system_admin_since')
+      .select('email')
       .first();
-    
-    // Primary admin is the one who became admin first (lowest system_admin_since)
+
     if (!user) return false;
-    
-    const primaryAdmin = await db('users')
-      .where('system_role', 'SUPER_ADMIN')
-      .orderBy('system_admin_since', 'asc')
-      .select('id')
-      .first();
-    
-    return primaryAdmin?.id === userId;
+
+    // Primary admin is specifically admin@cogveri.com
+    return user.email.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase();
   } catch (error) {
     logger.error('Error checking primary system admin status:', error);
     return false;
   }
+};
+
+/**
+ * Check if user email matches the primary admin email
+ * Does not require database lookup - can use JWT payload
+ */
+export const isPrimaryAdminEmail = (email: string): boolean => {
+  return email.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase();
 };
 
 /**
@@ -245,6 +252,64 @@ export const requireSystemAdmin = async (
     logger.error('System admin middleware error:', error);
     res.status(500).json({
       error: 'Failed to verify system admin status',
+      code: 'PERMISSION_CHECK_ERROR',
+    });
+  }
+};
+
+/**
+ * Middleware: Require PRIMARY admin (admin@cogveri.com)
+ *
+ * This is a stricter check than requireSystemAdmin.
+ * Only the primary admin (admin@cogveri.com) can access these endpoints.
+ * Used for sensitive operations like granting/revoking SYSADMIN status.
+ *
+ * IMPORTANT: This middleware MUST come after enhancedAuthenticate
+ */
+export const requirePrimaryAdmin = async (
+  req: EnhancedAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        error: 'Not authenticated',
+        code: 'UNAUTHENTICATED',
+      });
+      return;
+    }
+
+    // Check if user email matches primary admin email
+    if (!isPrimaryAdminEmail(req.user.email)) {
+      logger.warn(
+        `Unauthorized primary admin access attempt by user ${req.user.id} (${req.user.email})`
+      );
+      res.status(403).json({
+        error: 'Primary administrator access required',
+        code: 'PRIMARY_ADMIN_REQUIRED',
+      });
+      return;
+    }
+
+    // Also verify they are a system admin (belt and suspenders)
+    const isAdmin = await isSystemAdmin(req.user.id);
+    if (!isAdmin) {
+      logger.warn(
+        `Primary admin email matched but user ${req.user.id} is not a system admin`
+      );
+      res.status(403).json({
+        error: 'Primary administrator access required',
+        code: 'PRIMARY_ADMIN_REQUIRED',
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Primary admin middleware error:', error);
+    res.status(500).json({
+      error: 'Failed to verify primary admin status',
       code: 'PERMISSION_CHECK_ERROR',
     });
   }

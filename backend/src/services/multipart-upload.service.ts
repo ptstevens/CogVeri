@@ -228,7 +228,8 @@ class MultipartUploadService {
           has_audio: data.hasAudio || false,
           resolution: data.resolution || null,
           frame_rate: data.frameRate || null,
-          browser_info: data.browserInfo || null,
+          // browser_info is JSONB column - must be valid JSON object, not plain string
+          browser_info: data.browserInfo ? { userAgent: data.browserInfo } : null,
           status: 'active',
           expires_at: expiresAt,
           created_at: new Date(),

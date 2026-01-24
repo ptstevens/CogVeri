@@ -197,7 +197,7 @@ async function resetProductionDatabase() {
       id: adminId,
       email: adminEmail.toLowerCase(),
       password: hashedPassword,
-      name: 'System Admin',
+      name: 'Paul Stevens',
       role: 'admin',
       system_role: 'SUPER_ADMIN',
       is_system_admin: true,
@@ -225,8 +225,8 @@ async function resetProductionDatabase() {
     });
     console.log(`✅ Created Super Admin: ${adminEmail}`);
 
-    // 4b. Create Steve (second super admin)
-    console.log('\n👤 Creating second Super Admin (Steve)...');
+    // 4b. Create Steve (regular admin - NOT a system admin)
+    console.log('\n👤 Creating Admin (***REDACTED_NAME***)...');
     const steveId = uuidv4();
     // Steve's password hash - same as his production password
     const stevePasswordHash = '***REDACTED_HASH***';
@@ -235,11 +235,11 @@ async function resetProductionDatabase() {
       id: steveId,
       email: '***REDACTED_EMAIL***',
       password: stevePasswordHash,
-      name: 'Steve',
-      role: 'employee',
-      system_role: 'SUPER_ADMIN',
-      is_system_admin: true,
-      system_admin_since: new Date(),
+      name: '***REDACTED_NAME***',
+      role: 'admin',
+      system_role: null,           // NOT a SYSADMIN - can be granted later by admin@cogveri.com
+      is_system_admin: false,      // NOT a SYSADMIN
+      system_admin_since: null,    // Never was a SYSADMIN
       organization_id: orgId,
       org_role: 'admin',
       org_status: 'active',
@@ -257,7 +257,7 @@ async function resetProductionDatabase() {
       created_at: new Date(),
       updated_at: new Date(),
     });
-    console.log(`✅ Created Super Admin: ***REDACTED_EMAIL***`);
+    console.log(`✅ Created Admin: ***REDACTED_EMAIL*** (***REDACTED_NAME***)`);
 
     // 5. Seed Rate Limit Rules
     console.log('\n⚡ Seeding rate limit rules...');
@@ -328,14 +328,15 @@ async function resetProductionDatabase() {
 📊 Summary:
    ✅ Schema reset and migrations applied
    ✅ System organization created (Enterprise tier, unlimited limits)
-   ✅ Super admins created: 2
+   ✅ Super admin created: 1 (Paul Stevens - admin@cogveri.com)
+   ✅ Regular admin created: 1 (***REDACTED_NAME*** - NOT a SYSADMIN)
    ✅ Rate limit rules: 3 (free, pro, enterprise)
    ✅ System templates: ${count}
 
 🔐 Login Credentials:
-   1. Email: ${adminEmail}
+   1. Email: ${adminEmail} (Paul Stevens - SYSADMIN)
       Password: [as set in SUPER_ADMIN_PASSWORD]
-   2. Email: ***REDACTED_EMAIL***
+   2. Email: ***REDACTED_EMAIL*** (***REDACTED_NAME*** - regular admin)
       Password: [same as production]
 
 ⚠️  IMPORTANT: Remove WIPE_DATABASE_ON_START from Coolify env vars now!

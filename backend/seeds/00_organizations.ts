@@ -30,7 +30,8 @@ export async function seed(knex: Knex): Promise<void> {
   // Create test organization with Enterprise tier (for system admin)
   const organization = await knex('organizations').insert({
     id: '00000000-0000-0000-0000-000000000001',
-    name: 'CogVeri Admin',
+    name: 'CogVeri System',
+    slug: 'cogveri-system',
     description: 'System administration organization',
     subscription_tier: 'enterprise',
     max_tasks: -1,  // Unlimited

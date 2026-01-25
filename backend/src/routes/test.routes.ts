@@ -11,7 +11,11 @@ const router = Router();
  * Test endpoints should NEVER be accessible in production environments
  */
 router.use((req: Request, res: Response, next: NextFunction): void => {
-  if (process.env.NODE_ENV === 'production') {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isStaging = process.env.ENVIRONMENT === 'staging' || process.env.APP_ENV === 'staging';
+
+  // Block in production, but allow in staging for testing
+  if (isProduction && !isStaging) {
     logger.warn('Attempted access to test endpoint in production', {
       path: req.path,
       method: req.method,

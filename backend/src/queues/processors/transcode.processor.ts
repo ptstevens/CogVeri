@@ -168,12 +168,14 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
           outputFormat || 'mp4'
         );
 
-        // Update recording to point to MP4 as primary file
+        // Update recording to point to MP4 as primary file and set accurate duration
         await db('recordings')
           .where('id', recordingId)
           .update({
             storage_key: mp4Key,
             file_type: 'video/mp4',
+            duration_seconds: Math.round(outputMetadata.duration),
+            file_size: outputMetadata.size,
             updated_at: new Date(),
           });
 
@@ -190,6 +192,15 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
             jobLog.warn(`Failed to delete original file: ${originalKey}`, { error: deleteError });
           }
         }
+      } else {
+        // For non-S3 storage (e.g., local), still update duration and file size
+        await db('recordings')
+          .where('id', recordingId)
+          .update({
+            duration_seconds: Math.round(outputMetadata.duration),
+            file_size: outputMetadata.size,
+            updated_at: new Date(),
+          });
       }
 
       // Complete

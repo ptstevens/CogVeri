@@ -10,6 +10,7 @@ import { db } from '../config/database';
 import recordingService from './recording.service';
 import { logger } from '../utils/logger';
 import { NotFoundError, BadRequestError } from '../utils/AppError';
+import { logAuditAction, AuditActionType, AuditResourceType } from '../utils/audit-logger';
 
 // Multer file interface (matching recording.service.ts)
 interface MulterFile {
@@ -26,6 +27,17 @@ interface MulterFile {
 
 // Task statuses that are eligible for sysadmin video upload
 const ELIGIBLE_TASK_STATUSES = ['assigned', 'in_progress', 'rejected'];
+
+/**
+ * Escape special characters in LIKE patterns to prevent SQL injection via wildcards
+ * Characters: % _ \ are escaped with backslash
+ */
+function escapeLikePattern(pattern: string): string {
+  return pattern
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/%/g, '\\%')     // Escape percent
+    .replace(/_/g, '\\_');    // Escape underscore
+}
 
 // Database row types for type-safe queries
 interface TaskQueryRow {
@@ -103,10 +115,26 @@ class AdminVideoUploadService {
    */
   async getEligibleTasks(
     organizationId: string,
+    sysadminUserId: string,
     search?: string,
     page: number = 0,
     limit: number = 25
   ): Promise<{ tasks: EligibleTask[]; total: number }> {
+    // Audit log: sysadmin accessing organization task data
+    await logAuditAction({
+      organizationId,
+      actorId: sysadminUserId,
+      action: AuditActionType.SYSADMIN_TASK_DATA_ACCESS,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      status: 'success',
+      metadata: {
+        search: search || null,
+        page,
+        limit,
+        context: 'admin_video_upload_task_list',
+      },
+    });
     // Build base query with joins and filters (no SELECT yet)
     const baseQuery = () => {
       let q = db('tasks as t')
@@ -116,9 +144,10 @@ class AdminVideoUploadService {
         .whereIn('t.status', ELIGIBLE_TASK_STATUSES)
         .where('t.organization_id', organizationId);
 
-      // Apply search filter
+      // Apply search filter with escaped LIKE pattern
       if (search && search.trim()) {
-        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        const escapedSearch = escapeLikePattern(search.trim().toLowerCase());
+        const searchTerm = `%${escapedSearch}%`;
         q = q.where(function () {
           this.whereRaw('LOWER(t.title) LIKE ?', [searchTerm])
             .orWhereRaw('LOWER(u.email) LIKE ?', [searchTerm])
@@ -303,6 +332,23 @@ class AdminVideoUploadService {
       taskId,
       sysadminUserId,
       status: updatedRecording.status,
+    });
+
+    // Audit log: sysadmin uploaded video to task
+    await logAuditAction({
+      organizationId,
+      actorId: sysadminUserId,
+      action: AuditActionType.SYSADMIN_VIDEO_UPLOAD,
+      resourceType: AuditResourceType.TASK,
+      resourceId: taskId,
+      status: 'success',
+      metadata: {
+        recordingId: updatedRecording.id,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        originalFilename: file.originalname,
+        context: 'admin_video_upload',
+      },
     });
 
     return {

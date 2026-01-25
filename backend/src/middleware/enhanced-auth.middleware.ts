@@ -151,7 +151,7 @@ export const enhancedAuthenticate = async (req: EnhancedAuthRequest, res: Respon
     logger.error('Authentication error:', error);
     res.status(401).json({ error: 'Unauthorized' });
   }
-};;
+};
 
 /**
  * Middleware to ensure organization context exists

@@ -279,6 +279,7 @@ export class JWTService {
 
   /**
    * Generate impersonation token for admin impersonation
+   * Records the impersonation session in the database for audit trail
    */
   async generateImpersonationToken(
     targetUserId: string,
@@ -286,9 +287,24 @@ export class JWTService {
     actorUserId: string
   ): Promise<{ token: string; impersonationId: string }> {
     try {
-      // TODO: Create impersonation record for audit trail in database
-      // For now, use a mock ID
-      const impersonationId = `imp_${Date.now()}`;
+      // Generate a unique token value for the JWT
+      const tokenValue = randomUUID();
+
+      // Calculate expiry time (same as JWT expiry)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 30); // 30 minutes
+
+      // Create impersonation record in database for audit trail
+      const [impersonationRecord] = await db('admin_impersonation_tokens')
+        .insert({
+          system_admin_id: actorUserId,
+          organization_id: targetOrgId,
+          token: tokenValue, // Store token value for lookup
+          expires_at: expiresAt,
+        })
+        .returning('id');
+
+      const impersonationId = impersonationRecord.id;
 
       const payload: ImpersonationTokenPayload = {
         userId: targetUserId,
@@ -303,6 +319,13 @@ export class JWTService {
         expiresIn: this.impersonationTokenExpiry,
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
+      });
+
+      logger.info('Impersonation token created', {
+        impersonationId,
+        actorUserId,
+        targetOrgId,
+        expiresAt,
       });
 
       return { token, impersonationId };

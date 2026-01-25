@@ -44,6 +44,31 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const isCleaningUp = useRef(false);
+  const currentTokenRef = useRef<string | null>(null);
+
+  // Subscribe to token changes to update socket auth on refresh
+  useEffect(() => {
+    const unsubscribe = tokenService.onTokenChange((newToken) => {
+      // Only act if we have a socket and the token actually changed
+      if (socket && newToken && newToken !== currentTokenRef.current) {
+        console.log('[Socket] Token refreshed, updating socket auth');
+        currentTokenRef.current = newToken;
+
+        // Update socket auth for next reconnection
+        socket.auth = { token: newToken };
+
+        // If currently disconnected due to auth error, try to reconnect
+        if (!socket.connected && connectionError?.includes('Authentication')) {
+          console.log('[Socket] Reconnecting with new token');
+          setConnectionError(null);
+          reconnectAttempts.current = 0;
+          socket.connect();
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [socket, connectionError]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -51,6 +76,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     }
 
     const token = tokenService.getAccessToken();
+    currentTokenRef.current = token;
 
     // Don't attempt connection without a valid token
     if (!token) {

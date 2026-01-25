@@ -253,15 +253,24 @@ export default function AdminAIPromptEditor() {
             {/* Change Reason */}
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Change reason (optional)
+                Change reason <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={changeReason}
                 onChange={(e) => setChangeReason(e.target.value)}
                 placeholder="e.g., Made scoring more lenient for partial matches"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  hasChanges && changeReason.trim().length < 5
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-gray-300'
+                }`}
               />
+              {hasChanges && changeReason.trim().length < 5 && (
+                <p className="text-sm text-red-600 mt-1">
+                  Please provide a reason for this change (minimum 5 characters)
+                </p>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -289,7 +298,7 @@ export default function AdminAIPromptEditor() {
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!hasChanges || saving || editedPrompt.trim().length < 50}
+                  disabled={!hasChanges || saving || editedPrompt.trim().length < 50 || changeReason.trim().length < 5}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />

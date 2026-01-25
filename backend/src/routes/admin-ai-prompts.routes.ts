@@ -126,6 +126,14 @@ router.put('/:key', async (req: EnhancedAuthRequest, res: Response): Promise<voi
       return;
     }
 
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      res.status(400).json({
+        success: false,
+        error: 'A change reason is required (minimum 5 characters)',
+      });
+      return;
+    }
+
     const userId = req.user!.id;
     const updatedPrompt = await aiPromptsService.updatePrompt(key, systemPrompt, userId, reason);
 

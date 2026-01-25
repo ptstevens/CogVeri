@@ -6,6 +6,7 @@ import {
   Settings,
   ShieldCheck,
   Upload,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPrimaryAdmin } from '../../config/sysadmin';
@@ -46,6 +47,11 @@ const adminNavItems: NavItem[] = [
     name: 'Video Upload',
     href: '/admin/video-upload',
     icon: Upload,
+  },
+  {
+    name: 'AI Prompts',
+    href: '/admin/ai-prompts',
+    icon: Sparkles,
   },
   {
     name: 'SYSADMIN',

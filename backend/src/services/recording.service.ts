@@ -340,27 +340,16 @@ class RecordingService {
 
         if (hasTranscription) {
           // Update recording to indicate transcription is pending
+          // Note: The actual transcription_jobs record is created by the transcription
+          // worker when it picks up the job from BullMQ. This avoids a race condition
+          // where the deduplication check in queueTranscriptionIfEnabled() would skip
+          // queueing if a DB record already exists.
           await trx('recordings')
             .where('id', recordingId)
             .update({
               transcription_status: 'pending',
               updated_at: new Date(),
             });
-
-          // Create transcription job record within transaction
-          await trx('transcription_jobs').insert({
-            recording_id: recordingId,
-            organization_id: orgId,
-            user_id: userId,
-            status: 'pending',
-            progress: 0,
-            stage: 'queued',
-            retry_count: 0,
-            max_retries: 2,
-            options: JSON.stringify({ includeTimestamps: true }),
-            created_at: new Date(),
-            updated_at: new Date(),
-          });
         }
 
         return updated;

@@ -5,9 +5,23 @@ import { Knex } from 'knex';
  * This seeds the rate_limit_rules table with tier-based rate limiting configuration
  */
 export async function seed(knex: Knex): Promise<void> {
+  // PRODUCTION SAFEGUARD: Prevent accidental data modification
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const allowProdSeed = process.env.ALLOW_PRODUCTION_SEED === 'true';
+
+  if (nodeEnv === 'production' && !allowProdSeed) {
+    console.warn('⚠️  Seed aborted: Running seeds in production is disabled.');
+    console.warn('   Set ALLOW_PRODUCTION_SEED=true to override (dangerous!)');
+    return;
+  }
+
+  if (nodeEnv === 'production' && allowProdSeed) {
+    console.warn('⚠️  WARNING: Running seed in production mode!');
+  }
+
   // Get the search_path from environment
   const searchPath = process.env.DB_SEARCH_PATH || 'public';
-  
+
   // Set the search path for this connection
   await knex.raw(`SET search_path = '${searchPath}'`);
 

@@ -125,14 +125,12 @@ class AdminVideoUploadService {
           EXISTS (
             SELECT 1 FROM recordings r
             WHERE r.task_id = t.id
-            AND r.deleted_at IS NULL
           ) as has_recording
         `),
         db.raw(`
           (
             SELECT r.status FROM recordings r
             WHERE r.task_id = t.id
-            AND r.deleted_at IS NULL
             ORDER BY r.created_at DESC
             LIMIT 1
           ) as recording_status
@@ -204,7 +202,6 @@ class AdminVideoUploadService {
     // Get existing recording info
     const existingRecording = await db('recordings')
       .where('task_id', taskId)
-      .whereNull('deleted_at')
       .orderBy('created_at', 'desc')
       .select<RecordingRow[]>('id', 'status', 'created_at', 'file_size_bytes')
       .first();

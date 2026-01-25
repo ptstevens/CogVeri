@@ -34,7 +34,8 @@
     "prettier": "^3.7.4"
   },
   "overrides": {
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "lodash": "^4.17.23"
   },
   "engines": {
     "node": ">=18.0.0",

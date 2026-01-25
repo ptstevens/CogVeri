@@ -355,7 +355,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
         height: variant.height,
         bitrate: variant.bitrate,
         file_size_bytes: variant.fileSize,
-        duration_seconds: variant.duration,
+        duration_seconds: Math.round(variant.duration),
         is_ready: true, // Mark as ready so getRecordingPlaybackUrl serves the transcoded MP4
         created_at: new Date(),
         updated_at: new Date(),

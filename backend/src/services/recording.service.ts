@@ -315,18 +315,20 @@ class RecordingService {
             .update(taskUpdateData);
         }
 
-        // Track storage usage within transaction
-        await trx('storage_metrics')
+        // Track storage usage within transaction (recording_file_sizes table)
+        await trx('recording_file_sizes')
           .insert({
             organization_id: orgId,
             recording_id: recordingId,
-            bytes_used: file.size,
+            file_size_bytes: file.size,
+            file_type: file.mimetype,
+            storage_provider: 's3',
             created_at: new Date(),
             updated_at: new Date(),
           })
           .onConflict('recording_id')
           .merge({
-            bytes_used: file.size,
+            file_size_bytes: file.size,
             updated_at: new Date(),
           });
 
@@ -825,10 +827,10 @@ class RecordingService {
             updated_at: new Date(),
           });
 
-        // Update storage metrics
+        // Update storage metrics (delete from recording_file_sizes)
         const fileSizeBytes = recording.file_size_bytes ? Number(recording.file_size_bytes) : 0;
         if (fileSizeBytes > 0) {
-          await trx('storage_metrics')
+          await trx('recording_file_sizes')
             .where('recording_id', recordingId)
             .del();
         }
@@ -905,7 +907,7 @@ class RecordingService {
       await query('analysis_results').where('recording_id', recordingId).del();
       await query('analysis_jobs').where('recording_id', recordingId).del();
       await query('transcription_jobs').where('recording_id', recordingId).del();
-      await query('storage_metrics').where('recording_id', recordingId).del();
+      await query('recording_file_sizes').where('recording_id', recordingId).del();
       await query('recordings').where('id', recordingId).del();
 
       logger.info(`Recording hard deleted with all files: ${recordingId}`);

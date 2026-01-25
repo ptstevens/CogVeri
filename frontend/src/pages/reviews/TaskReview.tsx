@@ -127,7 +127,7 @@ const TaskReview: React.FC = () => {
   }, [selectedRecordingIndex]);
 
   // Fetch playback URL for the selected recording (only if completed)
-  const { data: playbackUrl, isLoading: playbackUrlLoading } = useQuery({
+  const { data: playbackUrl, isLoading: playbackUrlLoading, refetch: refetchPlaybackUrl } = useQuery({
     queryKey: ['playback-url', selectedRecording?.id],
     queryFn: async () => {
       if (!selectedRecording?.id) return null;
@@ -135,8 +135,9 @@ const TaskReview: React.FC = () => {
       return response.data.url;
     },
     enabled: !!selectedRecording?.id && selectedRecording?.status === 'completed',
-    staleTime: 1000 * 60 * 60, // 1 hour (since signed URLs expire after 24 hours)
-    retry: false,
+    staleTime: 1000 * 60 * 30, // 30 minutes (signed URLs expire after 24 hours)
+    retry: 2, // Retry twice on failure
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
 
   // Fetch analysis status for the selected recording
@@ -234,10 +235,29 @@ const TaskReview: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleVideoError = (error: Error) => {
+  const handleVideoError = async (error: Error) => {
     const errorMessage = error.message || 'Unknown video playback error';
     setVideoError(errorMessage);
-    toast.error(`Video Error: ${errorMessage}`);
+
+    // Auto-retry: fetch a fresh playback URL on error (signed URL may have expired)
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['playback-url', selectedRecording?.id] });
+      await refetchPlaybackUrl();
+    } catch {
+      // If refetch also fails, show the error
+      toast.error(`Video Error: ${errorMessage}`);
+    }
+  };
+
+  const handleRetryVideo = async () => {
+    setVideoError('');
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['playback-url', selectedRecording?.id] });
+      await refetchPlaybackUrl();
+      toast.success('Refreshed video URL');
+    } catch {
+      toast.error('Failed to refresh video');
+    }
   };
 
   const handleSeekToTime = (time: number) => {
@@ -568,8 +588,15 @@ const TaskReview: React.FC = () => {
                     {/* Video Player */}
                     <div className="relative">
                       {videoError && (
-                        <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-2 text-sm z-10">
-                          {videoError}
+                        <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-2 text-sm z-10 flex items-center justify-between">
+                          <span>{videoError}</span>
+                          <button
+                            onClick={handleRetryVideo}
+                            className="ml-3 flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition-colors"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            Retry
+                          </button>
                         </div>
                       )}
                       {selectedRecording?.status !== 'completed' ? (

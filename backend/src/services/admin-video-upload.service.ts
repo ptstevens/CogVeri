@@ -107,10 +107,34 @@ class AdminVideoUploadService {
     page: number = 0,
     limit: number = 25
   ): Promise<{ tasks: EligibleTask[]; total: number }> {
-    let query = db('tasks as t')
-      .join('organizations as o', 't.organization_id', 'o.id')
-      .leftJoin('users as u', 't.assigned_to', 'u.id')
-      .leftJoin('task_templates as tt', 't.template_id', 'tt.id')
+    // Build base query with joins and filters (no SELECT yet)
+    const baseQuery = () => {
+      let q = db('tasks as t')
+        .join('organizations as o', 't.organization_id', 'o.id')
+        .leftJoin('users as u', 't.assigned_to', 'u.id')
+        .leftJoin('task_templates as tt', 't.template_id', 'tt.id')
+        .whereIn('t.status', ELIGIBLE_TASK_STATUSES)
+        .where('t.organization_id', organizationId);
+
+      // Apply search filter
+      if (search && search.trim()) {
+        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        q = q.where(function () {
+          this.whereRaw('LOWER(t.title) LIKE ?', [searchTerm])
+            .orWhereRaw('LOWER(u.email) LIKE ?', [searchTerm])
+            .orWhereRaw('LOWER(u.name) LIKE ?', [searchTerm]);
+        });
+      }
+
+      return q;
+    };
+
+    // Get total count (separate query without SELECT columns)
+    const countResult = await baseQuery().count<CountRow[]>('t.id as count').first();
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated results with full SELECT
+    const tasks = await baseQuery()
       .select<TaskQueryRow[]>(
         't.id',
         't.title',
@@ -136,25 +160,6 @@ class AdminVideoUploadService {
           ) as recording_status
         `)
       )
-      .whereIn('t.status', ELIGIBLE_TASK_STATUSES)
-      .where('t.organization_id', organizationId);
-
-    // Apply search filter
-    if (search && search.trim()) {
-      const searchTerm = `%${search.trim().toLowerCase()}%`;
-      query = query.where(function (this: typeof query) {
-        void this.whereRaw('LOWER(t.title) LIKE ?', [searchTerm])
-          .orWhereRaw('LOWER(u.email) LIKE ?', [searchTerm])
-          .orWhereRaw('LOWER(u.name) LIKE ?', [searchTerm]);
-      });
-    }
-
-    // Get total count
-    const countResult = await query.clone().count<CountRow[]>('t.id as count').first();
-    const total = Number(countResult?.count || 0);
-
-    // Get paginated results
-    const tasks = await query
       .orderBy('t.created_at', 'desc')
       .offset(page * limit)
       .limit(limit) as EligibleTask[];

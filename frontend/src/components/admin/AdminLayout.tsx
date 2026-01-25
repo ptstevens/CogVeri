@@ -16,6 +16,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   end?: boolean;
   primaryAdminOnly?: boolean;
+  hidden?: boolean; // Hide from nav without removing code
 }
 
 const adminNavItems: NavItem[] = [
@@ -34,6 +35,7 @@ const adminNavItems: NavItem[] = [
     name: 'Pricing & Tiers',
     href: '/admin/pricing',
     icon: CreditCard,
+    hidden: true, // Hidden for now - enable when billing features are needed
   },
   {
     name: 'Settings',
@@ -57,8 +59,12 @@ export default function AdminLayout() {
   const { user } = useAuth();
   const isUserPrimaryAdmin = isPrimaryAdmin(user);
 
-  // Filter nav items based on user permissions
+  // Filter nav items based on user permissions and visibility
   const filteredNavItems = adminNavItems.filter((item) => {
+    // Skip hidden items
+    if (item.hidden) {
+      return false;
+    }
     // If primaryAdminOnly is set, only show to admin@cogveri.com
     if (item.primaryAdminOnly && !isUserPrimaryAdmin) {
       return false;

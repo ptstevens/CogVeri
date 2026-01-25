@@ -46,6 +46,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const isCleaningUp = useRef(false);
   const currentTokenRef = useRef<string | null>(null);
 
+  // Extract stable user identifiers to prevent unnecessary socket recreation
+  // when user object reference changes but identity remains the same
+  const userId = user?.id;
+  const userOrgId = user?.org_id;
+
   // Subscribe to token changes to update socket auth on refresh
   useEffect(() => {
     const unsubscribe = tokenService.onTokenChange((newToken) => {
@@ -71,7 +76,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   }, [socket, connectionError]);
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    // Use stable userId instead of user object to prevent unnecessary reconnections
+    if (!isAuthenticated || !userId) {
       return;
     }
 
@@ -111,9 +117,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       console.log('[Socket] Connected successfully');
 
       // Auto-join organization room to receive org-level events (e.g., subscription changes)
-      if (user?.org_id) {
-        newSocket.emit('join:organization', user.org_id);
-        console.log('[Socket] Joined organization room:', user.org_id);
+      if (userOrgId) {
+        newSocket.emit('join:organization', userOrgId);
+        console.log('[Socket] Joined organization room:', userOrgId);
       }
     });
 
@@ -244,7 +250,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       isCleaningUp.current = true;
       newSocket.disconnect();
     };
-  }, [isAuthenticated, user, queryClient]);
+    // Use userId and userOrgId instead of user object to prevent unnecessary reconnections
+    // when user object reference changes but identity remains the same (e.g., after token refresh)
+  }, [isAuthenticated, userId, userOrgId, queryClient]);
 
   const joinTaskRoom = useCallback((taskId: string) => {
     socket?.emit('join:task', taskId);

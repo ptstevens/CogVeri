@@ -316,6 +316,8 @@ class RecordingService {
         }
 
         // Track storage usage within transaction (recording_file_sizes table)
+        // Note: No ON CONFLICT needed since recording_id is not unique
+        // (multiple files per recording for variants/thumbnails)
         await trx('recording_file_sizes')
           .insert({
             organization_id: orgId,
@@ -324,11 +326,6 @@ class RecordingService {
             file_type: file.mimetype,
             storage_provider: 's3',
             created_at: new Date(),
-            updated_at: new Date(),
-          })
-          .onConflict('recording_id')
-          .merge({
-            file_size_bytes: file.size,
             updated_at: new Date(),
           });
 

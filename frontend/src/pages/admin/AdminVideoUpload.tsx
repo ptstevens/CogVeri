@@ -202,23 +202,25 @@ export default function AdminVideoUpload() {
 
       setUploadSuccess('Video uploaded successfully! Transcription and analysis jobs have been queued.');
 
-      // Refresh task details and task list
-      const [detailsResponse] = await Promise.all([
-        api.get(`/admin/video-upload/tasks/${selectedTaskId}`),
-        // Also refresh the task list to show updated status
-        api.get('/admin/video-upload/tasks', {
+      // Clear selected task (it's now "submitted" and no longer eligible)
+      setSelectedTaskId(null);
+      setTaskDetails(null);
+
+      // Refresh task list only (the uploaded task will no longer appear since it's now "submitted")
+      try {
+        const res = await api.get('/admin/video-upload/tasks', {
           params: {
             organizationId: selectedOrgId,
             search: debouncedSearch || undefined,
             page,
             limit,
           },
-        }).then(res => {
-          setTasks(res.data.data.tasks);
-          setTotal(res.data.data.total);
-        }),
-      ]);
-      setTaskDetails(detailsResponse.data.data);
+        });
+        setTasks(res.data.data.tasks);
+        setTotal(res.data.data.total);
+      } catch {
+        // Ignore refresh errors - the upload already succeeded
+      }
     } catch (err: unknown) {
       setUploadError(getErrorMessage(err, 'Upload failed'));
     } finally {

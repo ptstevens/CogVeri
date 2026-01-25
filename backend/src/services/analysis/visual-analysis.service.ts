@@ -206,11 +206,19 @@ class VisualAnalysisService {
    */
   private parseVisualResponse(responseText: string): any {
     try {
-      let jsonStr = responseText;
+      let jsonStr = responseText.trim();
+
+      // Try to match complete code blocks first
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonStr = jsonMatch[1].trim();
+      } else {
+        // Fallback: strip opening/closing code fences separately
+        // Handles cases where AI returns partial code blocks
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '');
+        jsonStr = jsonStr.replace(/\n?```\s*$/, '');
       }
+
       return JSON.parse(jsonStr);
     } catch (error) {
       logger.error('Failed to parse visual response:', error);

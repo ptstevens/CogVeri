@@ -400,10 +400,24 @@ class RecordingService {
       .first();
     const orgSlug = org?.slug || 'unknown';
 
+    // Get file content - handle both memory storage (buffer) and disk storage (path)
+    let fileContent: Buffer;
+    if (file.buffer) {
+      fileContent = file.buffer;
+    } else if (file.path) {
+      fileContent = await fs.readFile(file.path);
+    } else {
+      throw new Error('No file content available for upload');
+    }
+
     // Upload to S3 if configured, otherwise save locally
     if (this.s3Client && process.env.AWS_S3_BUCKET) {
       try {
-        logger.info(`Attempting S3/R2 upload for recording ${recordingId}`);
+        logger.info(`Attempting S3/R2 upload for recording ${recordingId}`, {
+          fileSize: fileContent.length,
+          hasBuffer: !!file.buffer,
+          hasPath: !!file.path,
+        });
 
         // Resolve bucket (now returns the single environment bucket)
         const storageBucket = await resolveOrganizationBucket(recording.organization_id);
@@ -413,7 +427,7 @@ class RecordingService {
         const command = new PutObjectCommand({
           Bucket: storageBucket,
           Key: storageKey,
-          Body: file.buffer,
+          Body: fileContent,
           ContentType: file.mimetype,
           Metadata: {
             task_id: recording.task_id,
@@ -460,10 +474,20 @@ class RecordingService {
     const localDir = path.join(this.uploadDir, orgSlug, 'recordings');
     const filePath = path.join(localDir, fileName);
 
+    // Get file content - handle both memory storage (buffer) and disk storage (path)
+    let fileContent: Buffer;
+    if (file.buffer) {
+      fileContent = file.buffer;
+    } else if (file.path) {
+      fileContent = await fs.readFile(file.path);
+    } else {
+      throw new Error('No file content available for local upload');
+    }
+
     // Ensure directory exists
     await fs.mkdir(localDir, { recursive: true });
-    await fs.writeFile(filePath, file.buffer!);
-    logger.info(`Saved to local storage: ${fileName}`, { orgSlug });
+    await fs.writeFile(filePath, fileContent);
+    logger.info(`Saved to local storage: ${fileName}`, { orgSlug, fileSize: fileContent.length });
 
     return {
       fileUrl: `/uploads/${orgSlug}/recordings/${fileName}`,

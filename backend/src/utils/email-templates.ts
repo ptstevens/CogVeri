@@ -59,7 +59,7 @@ export interface EmailTemplateOptions {
  */
 function getLogoUrl(): string {
   const frontendUrl = process.env.FRONTEND_URL || 'https://cogveri.com';
-  return `${frontendUrl}/cogveri-logo-horizontal.png`;
+  return `${frontendUrl}/cogveri-logo-horizontal-white.png`;
 }
 
 /**
@@ -166,7 +166,7 @@ export function generateEmailTemplate(options: EmailTemplateOptions): string {
                       alt="CogVeri - Knowledge, Verified"
                       width="180"
                       class="logo-img"
-                      style="display: block; width: 180px; max-width: 180px; height: auto; filter: brightness(0) invert(1);"
+                      style="display: block; width: 180px; max-width: 180px; height: auto;"
                     />
                   </td>
                 </tr>

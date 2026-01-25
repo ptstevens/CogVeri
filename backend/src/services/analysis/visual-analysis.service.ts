@@ -10,6 +10,7 @@ import { VISUAL_ANALYSIS_SYSTEM_PROMPT, buildVisualAnalysisPrompt } from './prom
 import { logger } from '../../utils/logger';
 import { getS3Client, isS3Available, getS3Bucket } from '../../config/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { geminiRateLimiter } from './gemini-rate-limiter';
 
 // Alias for backwards compatibility
 const isS3Configured = isS3Available;
@@ -149,6 +150,9 @@ class VisualAnalysisService {
       };
     }
 
+    // Wait for rate limit capacity (estimate ~15K tokens per batch with images)
+    await geminiRateLimiter.waitForCapacity(15000);
+
     const result = await this.model.generateContent([
       { text: VISUAL_ANALYSIS_SYSTEM_PROMPT },
       ...validImageParts,
@@ -159,15 +163,20 @@ class VisualAnalysisService {
     const responseText = response.text();
     const usageMetadata = response.usageMetadata;
 
+    const tokens = {
+      inputTokens: usageMetadata?.promptTokenCount || 0,
+      outputTokens: usageMetadata?.candidatesTokenCount || 0,
+      totalTokens: usageMetadata?.totalTokenCount || 0,
+    };
+
+    // Record actual usage for rate limiting
+    geminiRateLimiter.recordUsage(tokens.totalTokens);
+
     const parsed = this.parseVisualResponse(responseText);
 
     return {
       analysis: parsed.frameAnalysis || [],
-      tokens: {
-        inputTokens: usageMetadata?.promptTokenCount || 0,
-        outputTokens: usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: usageMetadata?.totalTokenCount || 0,
-      },
+      tokens,
     };
   }
 

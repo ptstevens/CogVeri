@@ -11,6 +11,7 @@ import {
   buildSpeechAnalysisPrompt,
 } from './prompts/analysis.prompts';
 import { logger } from '../../utils/logger';
+import { geminiRateLimiter } from './gemini-rate-limiter';
 
 /**
  * Transcript segment from database
@@ -109,6 +110,9 @@ class SpeechAnalysisService {
         stepsWithSpeech
       );
 
+      // Wait for rate limit capacity (estimate ~5K tokens for speech analysis)
+      await geminiRateLimiter.waitForCapacity(5000);
+
       // Call Gemini
       const result = await this.model.generateContent([
         { text: SPEECH_ANALYSIS_SYSTEM_PROMPT },
@@ -125,6 +129,9 @@ class SpeechAnalysisService {
         outputTokens: usageMetadata?.candidatesTokenCount || 0,
         totalTokens: usageMetadata?.totalTokenCount || 0,
       };
+
+      // Record actual usage for rate limiting
+      geminiRateLimiter.recordUsage(tokensUsed.totalTokens);
 
       // Parse the JSON response
       const analysisResults = this.parseAnalysisResponse(responseText, stepsWithSpeech);

@@ -10,7 +10,10 @@ const AdminRoute = ({ children }: AdminRouteProps) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  // Show loading when:
+  // 1. Auth is still loading (initial check in progress)
+  // 2. We think we're authenticated but user data hasn't loaded yet
+  if (isLoading || (isAuthenticated && !user)) {
     return <LoadingSpinner fullScreen message="Loading..." />;
   }
 

@@ -12,8 +12,11 @@ const ProtectedRoute = memo(({ children, requiredRoles }: ProtectedRouteProps) =
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  // Only show loading on initial auth check, not on navigation
-  if (isLoading && !user) {
+  // Show loading when:
+  // 1. Auth is still loading (initial check in progress)
+  // 2. We think we're authenticated but user data hasn't loaded yet
+  //    (prevents race condition where pages render before user is ready)
+  if (isLoading || (isAuthenticated && !user)) {
     return <LoadingSpinner fullScreen message="Loading..." />;
   }
 

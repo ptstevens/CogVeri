@@ -137,8 +137,7 @@ class AdminVideoUploadService {
         `)
       )
       .whereIn('t.status', ELIGIBLE_TASK_STATUSES)
-      .where('t.organization_id', organizationId)
-      .whereNull('t.deleted_at');
+      .where('t.organization_id', organizationId);
 
     // Apply search filter
     if (search && search.trim()) {
@@ -184,7 +183,6 @@ class AdminVideoUploadService {
         't.created_at'
       )
       .where('t.id', taskId)
-      .whereNull('t.deleted_at')
       .first();
 
     if (!task) {
@@ -239,7 +237,6 @@ class AdminVideoUploadService {
       .join('organizations as o', 't.organization_id', 'o.id')
       .select<TaskQueryRow[]>('t.id', 't.status', 't.organization_id', 'o.slug as org_slug')
       .where('t.id', taskId)
-      .whereNull('t.deleted_at')
       .first();
 
     if (!task) {

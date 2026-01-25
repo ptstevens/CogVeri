@@ -42,6 +42,7 @@ const AdminOrganizationDetail = lazy(() => import('./pages/admin/AdminOrganizati
 const AdminPricing = lazy(() => import('./pages/admin/AdminPricing'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminSystemAdmins = lazy(() => import('./pages/admin/AdminSystemAdmins'));
+const AdminVideoUpload = lazy(() => import('./pages/admin/AdminVideoUpload'));
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const RubricBuilderPage = lazy(() => import('./pages/rubric/RubricBuilderPage'));
 const AnalysisResultsPage = lazy(() => import('./pages/analysis/AnalysisResultsPage'));
@@ -128,6 +129,7 @@ function App() {
                 <Route path="pricing" element={<AdminPricing />} />
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="system-admins" element={<AdminSystemAdmins />} />
+                <Route path="video-upload" element={<AdminVideoUpload />} />
               </Route>
             </Route>
 

@@ -5,6 +5,7 @@ import {
   CreditCard,
   Settings,
   ShieldCheck,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPrimaryAdmin } from '../../config/sysadmin';
@@ -38,6 +39,11 @@ const adminNavItems: NavItem[] = [
     name: 'Settings',
     href: '/admin/settings',
     icon: Settings,
+  },
+  {
+    name: 'Video Upload',
+    href: '/admin/video-upload',
+    icon: Upload,
   },
   {
     name: 'SYSADMIN',

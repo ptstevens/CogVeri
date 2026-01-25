@@ -11,6 +11,20 @@ import { Knex } from 'knex';
  * 4. Bug Report - Document issues for development teams
  */
 export async function seed(knex: Knex): Promise<void> {
+  // PRODUCTION SAFEGUARD: Prevent accidental data modification
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const allowProdSeed = process.env.ALLOW_PRODUCTION_SEED === 'true';
+
+  if (nodeEnv === 'production' && !allowProdSeed) {
+    console.warn('⚠️  Seed aborted: Running seeds in production is disabled.');
+    console.warn('   Set ALLOW_PRODUCTION_SEED=true to override (dangerous!)');
+    return;
+  }
+
+  if (nodeEnv === 'production' && allowProdSeed) {
+    console.warn('⚠️  WARNING: Running seed in production mode!');
+  }
+
   // Get the search_path from environment
   const searchPath = process.env.DB_SEARCH_PATH || 'public';
 

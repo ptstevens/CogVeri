@@ -6,7 +6,8 @@
 
 import { getVisionAnalysisModel, estimateCost, TokenUsage } from '../../config/gemini';
 import { RubricStep, VisualEvidence, StepScoreValue, ExtractedFrame } from '../../queues/types/job-types';
-import { VISUAL_ANALYSIS_SYSTEM_PROMPT, buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
+import { buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
+import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
 import { getS3Client, isS3Available, getS3Bucket } from '../../config/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
@@ -153,8 +154,11 @@ class VisualAnalysisService {
     // Wait for rate limit capacity (estimate ~15K tokens per batch with images)
     await geminiRateLimiter.waitForCapacity(15000);
 
+    // Fetch system prompt (from DB with fallback to hardcoded)
+    const systemPrompt = await getVisualAnalysisPrompt();
+
     const result = await this.model.generateContent([
-      { text: VISUAL_ANALYSIS_SYSTEM_PROMPT },
+      { text: systemPrompt },
       ...validImageParts,
       { text: prompt },
     ]);

@@ -12,6 +12,10 @@
 import { Router, Response, NextFunction, RequestHandler } from 'express';
 import multer, { MulterError } from 'multer';
 import { z } from 'zod';
+import path from 'path';
+import os from 'os';
+import fs from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
 import { enhancedAuthenticate, EnhancedAuthRequest } from '../middleware/enhanced-auth.middleware';
 import { requireSystemAdmin } from '../middleware/system-admin.middleware';
 import { adminVideoUploadService } from '../services/admin-video-upload.service';
@@ -24,6 +28,14 @@ const router = Router();
 const MAX_FILE_SIZE_MB = 500;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+// Temp directory for large file uploads
+const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), 'cogveri-admin-uploads');
+
+// Ensure temp directory exists
+fs.mkdir(UPLOAD_TEMP_DIR, { recursive: true }).catch((err) => {
+  logger.error('Failed to create admin upload temp directory:', err);
+});
+
 // Allowed video MIME types
 const ALLOWED_MIME_TYPES = [
   'video/webm',
@@ -34,9 +46,20 @@ const ALLOWED_MIME_TYPES = [
   'video/ogg',
 ];
 
-// Configure multer for file upload (memory storage for S3 upload)
+// Configure multer for file upload using disk storage for large files
+// This prevents memory exhaustion from 500MB uploads
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, UPLOAD_TEMP_DIR);
+    },
+    filename: (_req, file, cb) => {
+      // Generate unique filename to prevent collisions
+      const uniqueSuffix = `${Date.now()}-${uuidv4()}`;
+      const ext = path.extname(file.originalname) || '.video';
+      cb(null, `admin-upload-${uniqueSuffix}${ext}`);
+    },
+  }),
   limits: {
     fileSize: MAX_FILE_SIZE_BYTES,
   },
@@ -116,8 +139,10 @@ router.get(
         page: validated.page,
       });
 
+      const sysadminUserId = req.user!.id;
       const { tasks, total } = await adminVideoUploadService.getEligibleTasks(
         validated.organizationId,
+        sysadminUserId,
         validated.search,
         validated.page,
         validated.limit
@@ -215,6 +240,9 @@ router.post(
   '/tasks/:taskId/upload',
   upload.single('video'),
   asyncHandler(async (req: EnhancedAuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    // Store temp file path for cleanup
+    const tempFilePath = req.file?.path;
+
     try {
       const { taskId } = taskIdParamSchema.parse(req.params);
 
@@ -234,6 +262,7 @@ router.post(
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         originalName: req.file.originalname,
+        tempPath: tempFilePath,
       });
 
       const result = await adminVideoUploadService.uploadVideoToTask(
@@ -257,6 +286,13 @@ router.post(
         ));
       }
       next(error);
+    } finally {
+      // Clean up temp file after upload (success or failure)
+      if (tempFilePath) {
+        fs.unlink(tempFilePath).catch((err) => {
+          logger.warn('Failed to clean up temp upload file', { tempFilePath, error: err });
+        });
+      }
     }
   })
 );

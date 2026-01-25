@@ -4,15 +4,41 @@ import { AxiosError } from 'axios';
 import api from '../../services/api';
 import { AdminService } from '../../services/admin.service';
 
+// Sanitize error messages to prevent information leakage
+function sanitizeErrorMessage(message: string): string {
+  // Remove potential stack traces, file paths, and internal details
+  const sanitized = message
+    .replace(/at\s+\S+\s+\([^)]+\)/gi, '') // Remove stack traces
+    .replace(/\/[^\s]+\.[jt]s(x)?:\d+:\d+/gi, '') // Remove file paths
+    .replace(/Error:\s*/gi, '')  // Remove redundant "Error:" prefixes
+    .replace(/\s+/g, ' ')  // Normalize whitespace
+    .trim();
+
+  // If message looks like internal error, use generic message
+  if (
+    sanitized.toLowerCase().includes('internal') ||
+    sanitized.toLowerCase().includes('unexpected') ||
+    sanitized.includes('ECONNREFUSED') ||
+    sanitized.includes('ETIMEDOUT') ||
+    !sanitized || sanitized.length < 3
+  ) {
+    return 'An error occurred. Please try again.';
+  }
+
+  return sanitized;
+}
+
 // Helper to extract error message from axios errors or generic errors
 function getErrorMessage(err: unknown, fallback: string): string {
+  let message = fallback;
+
   if (err instanceof AxiosError) {
-    return (err.response?.data as { error?: string })?.error || err.message || fallback;
+    message = (err.response?.data as { error?: string })?.error || err.message || fallback;
+  } else if (err instanceof Error) {
+    message = err.message || fallback;
   }
-  if (err instanceof Error) {
-    return err.message || fallback;
-  }
-  return fallback;
+
+  return sanitizeErrorMessage(message);
 }
 
 interface Organization {

@@ -68,6 +68,10 @@ export enum AuditActionType {
   ADMIN_IMPERSONATION_STARTED = 'admin_impersonation_started',
   ADMIN_IMPERSONATION_ENDED = 'admin_impersonation_ended',
   SYSTEM_SETTING_CHANGED = 'system_setting_changed',
+
+  // Sysadmin cross-tenant actions
+  SYSADMIN_VIDEO_UPLOAD = 'sysadmin_video_upload',
+  SYSADMIN_TASK_DATA_ACCESS = 'sysadmin_task_data_access',
 }
 
 export enum AuditResourceType {

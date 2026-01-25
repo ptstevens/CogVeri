@@ -1,6 +1,20 @@
 import { Knex } from 'knex';
 
 export async function seed(knex: Knex): Promise<void> {
+  // PRODUCTION SAFEGUARD: Prevent accidental data destruction
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const allowProdSeed = process.env.ALLOW_PRODUCTION_SEED === 'true';
+
+  if (nodeEnv === 'production' && !allowProdSeed) {
+    console.warn('⚠️  Seed aborted: Running seeds in production is disabled.');
+    console.warn('   Set ALLOW_PRODUCTION_SEED=true to override (dangerous!)');
+    return;
+  }
+
+  if (nodeEnv === 'production' && allowProdSeed) {
+    console.warn('⚠️  WARNING: Running seed in production mode!');
+  }
+
   // Clear existing data in correct order (respect foreign keys)
   // Only delete from tables that exist to avoid errors on fresh databases
   const tablesToDelete = [

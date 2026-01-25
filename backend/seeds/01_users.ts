@@ -2,6 +2,20 @@ import { Knex } from 'knex';
 import bcrypt from 'bcryptjs';
 
 export async function seed(knex: Knex): Promise<void> {
+  // PRODUCTION SAFEGUARD: Prevent accidental data destruction
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const allowProdSeed = process.env.ALLOW_PRODUCTION_SEED === 'true';
+
+  if (nodeEnv === 'production' && !allowProdSeed) {
+    console.warn('⚠️  Seed aborted: Running seeds in production is disabled.');
+    console.warn('   Set ALLOW_PRODUCTION_SEED=true to override (dangerous!)');
+    return;
+  }
+
+  if (nodeEnv === 'production' && allowProdSeed) {
+    console.warn('⚠️  WARNING: Running seed in production mode!');
+  }
+
   // Define organization ID for all test users
   const ORG_ID = '00000000-0000-0000-0000-000000000001';
 

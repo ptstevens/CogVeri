@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, CheckCheck, ExternalLink, X } from 'lucide-react';
+import { Bell, Check, CheckCheck, ExternalLink, X, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
 import api from '../../services/api';
@@ -75,7 +75,7 @@ const NotificationCenter = () => {
       // Show toast for new notifications
       toast(notification.title, {
         icon: getNotificationIcon(notification.type),
-        duration: 4000,
+        duration: 2500,
       });
     };
 
@@ -168,6 +168,19 @@ const NotificationCenter = () => {
       setUnreadCount(0);
     } catch (error) {
       console.error('Failed to mark all as read:', error);
+    }
+  };
+
+  const deleteNotification = async (notificationId: string, wasUnread: boolean) => {
+    try {
+      await api.delete(`/notifications/${notificationId}`);
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      toast.error('Failed to delete notification');
     }
   };
 
@@ -365,19 +378,33 @@ const NotificationCenter = () => {
                         </div>
                       </div>
 
-                      {/* Mark as read button (for unread only) */}
-                      {!notification.is_read && (
+                      {/* Action buttons */}
+                      <div className="flex items-center space-x-1 flex-shrink-0">
+                        {/* Mark as read button (for unread only) */}
+                        {!notification.is_read && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(notification.id);
+                            }}
+                            className="p-1 text-gray-400 hover:text-primary-500 rounded-full hover:bg-white transition-colors"
+                            title="Mark as read"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        )}
+                        {/* Delete button */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            markAsRead(notification.id);
+                            deleteNotification(notification.id, !notification.is_read);
                           }}
-                          className="p-1 text-gray-400 hover:text-primary-500 rounded-full hover:bg-white transition-colors"
-                          title="Mark as read"
+                          className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-white transition-colors"
+                          title="Delete notification"
                         >
-                          <Check className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ))}

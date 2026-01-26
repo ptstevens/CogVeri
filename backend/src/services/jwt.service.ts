@@ -66,13 +66,52 @@ export class JWTService {
   async generateAccessToken(
     userId: string,
     organizationId?: string | null,
-    impersonationData?: { impersonationId: string; actorUserId: string }
+    impersonationData?: { impersonationId: string; actorUserId: string },
+    crossTenantAccess?: {
+      targetOrgId: string;
+      grantRole: 'owner' | 'admin';
+    }
   ): Promise<string> {
     try {
       // Fetch user details from database
       const user = await db('users').where('id', userId).first();
       if (!user) {
         throw new Error('User not found');
+      }
+
+      // Handle sysadmin cross-tenant access (impersonation without becoming another user)
+      // This allows sysadmins to access other orgs while maintaining their own identity
+      if (crossTenantAccess && user.is_system_admin) {
+        const targetOrg = await db('organizations')
+          .where('id', crossTenantAccess.targetOrgId)
+          .first();
+
+        if (!targetOrg) {
+          throw new Error('Target organization not found');
+        }
+
+        const payload: JWTAccessPayload = {
+          userId,
+          email: user.email,
+          org_id: crossTenantAccess.targetOrgId,
+          org_slug: targetOrg.slug || '',
+          org_role: crossTenantAccess.grantRole, // Override role for cross-tenant access
+          organizations: [], // Empty - sysadmin has no actual memberships in target org
+          is_system_admin: true,
+          type: 'access',
+          ...(impersonationData && {
+            impersonation_id: impersonationData.impersonationId,
+            impersonation_actor_id: impersonationData.actorUserId,
+          }),
+        };
+
+        const token = jwt.sign(payload, this.accessTokenSecret, {
+          expiresIn: this.accessTokenExpiry,
+          issuer: JWT_ISSUER,
+          audience: JWT_AUDIENCE,
+        });
+
+        return token;
       }
 
       // Fetch ALL user's organizations from organization_members table

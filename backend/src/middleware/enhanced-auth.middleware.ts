@@ -57,7 +57,7 @@ export const enhancedAuthenticate = async (req: EnhancedAuthRequest, res: Respon
     // Check if user account is active
     const user = await db('users')
       .where('id', payload.userId)
-      .select('is_active', 'current_organization_id')
+      .select('is_active', 'current_organization_id', 'is_system_admin')
       .first();
 
     if (!user || !user.is_active) {
@@ -96,8 +96,12 @@ export const enhancedAuthenticate = async (req: EnhancedAuthRequest, res: Respon
       }
     }
 
-    // Check membership status in the target organization using organization_members table
-    if (payload.org_id) {
+    // Check membership status in the target organization
+    // Skip membership check for system admins using cross-tenant access
+    // (they won't have membership records but have valid tokens with granted roles)
+    const isCrossTenantAccess = payload.is_system_admin && payload.impersonation_id;
+    
+    if (payload.org_id && !isCrossTenantAccess) {
       const membership = await db('organization_members')
         .where('user_id', payload.userId)
         .where('organization_id', payload.org_id)

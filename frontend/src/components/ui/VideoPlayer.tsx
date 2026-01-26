@@ -37,6 +37,7 @@ export interface VideoPlayerProps {
   poster?: string;
   className?: string;
   onTimeUpdate?: (currentTime: number) => void;
+  onDurationChange?: (duration: number) => void;
   onPlay?: () => void;
   onPause?: () => void;
   onError?: (error: Error) => void;
@@ -57,6 +58,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       poster,
       className = '',
       onTimeUpdate,
+      onDurationChange,
       onPlay,
       onPause,
       onError,
@@ -113,6 +115,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           className={`cogveri-player ${className}`}
           onTimeUpdate={(detail) => {
             onTimeUpdate?.(detail.currentTime);
+          }}
+          onDurationChange={(duration) => {
+            if (duration && duration > 0) {
+              onDurationChange?.(duration);
+            }
           }}
           onPlay={() => onPlay?.()}
           onPause={() => onPause?.()}

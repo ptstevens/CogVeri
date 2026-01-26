@@ -62,6 +62,7 @@ const TaskReview: React.FC = () => {
   // Video player state
   const [_isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [actualDuration, setActualDuration] = useState<number>(0);
   const [videoError, setVideoError] = useState<string>('');
   const videoRef = React.useRef<VideoPlayerHandle>(null);
 
@@ -414,7 +415,7 @@ const TaskReview: React.FC = () => {
           {/* Timeline - connected to video player */}
           <ResultsTimeline
             stepResults={analysisResults.stepResults}
-            totalDuration={selectedRecording?.duration_seconds || 0}
+            totalDuration={actualDuration || selectedRecording?.duration_seconds || 0}
             onSeek={handleSeekToTime}
             currentTime={currentTime}
           />
@@ -619,6 +620,7 @@ const TaskReview: React.FC = () => {
                           poster={selectedRecording?.thumbnail_url}
                           className="w-full max-h-[60vh]"
                           onTimeUpdate={handleTimeUpdate}
+                          onDurationChange={setActualDuration}
                           onPlay={() => setIsPlaying(true)}
                           onPause={() => setIsPlaying(false)}
                           onError={handleVideoError}
@@ -632,7 +634,7 @@ const TaskReview: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-gray-600">Duration:</span>
-                          <span className="ml-2 font-medium">{formatTime(selectedRecording.duration_seconds)}</span>
+                          <span className="ml-2 font-medium">{formatTime(actualDuration || selectedRecording.duration_seconds)}</span>
                         </div>
                         <div>
                           <span className="text-gray-600">Submitted:</span>

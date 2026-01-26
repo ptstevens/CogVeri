@@ -6,56 +6,14 @@ import { emailService } from '../services/email.service';
 import { BadRequestError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
-
-// Validation schemas
-const createTaskSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
-  type: z.enum(['recording', 'live_demo', 'hybrid'], {
-    errorMap: () => ({ message: 'Type must be recording, live_demo, or hybrid' }),
-  }),
-  description: z.string().max(5000, 'Description must be 5000 characters or less').optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-  assigned_to: z.string().uuid('Invalid assignee ID').nullable().optional(),
-  reviewed_by: z.string().uuid('Invalid reviewer ID').nullable().optional(),
-  due_date: z.string().datetime().or(z.date()).transform((val) => val ? new Date(val) : undefined).optional(),
-  estimated_duration: z.number().int().positive().optional(),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
-  template_id: z.string().uuid('Invalid template ID').nullable().optional(),
-});
-
-const updateTaskSchema = z.object({
-  title: z.string().min(1).max(255).optional(),
-  description: z.string().max(5000).optional(),
-  status: z.enum(['draft', 'assigned', 'in_progress', 'submitted', 'in_review', 'completed', 'rejected']).optional(),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-  assigned_to: z.string().uuid().optional().transform((val) => val ?? undefined),
-  reviewed_by: z.string().uuid().optional().transform((val) => val ?? undefined),
-  due_date: z.string().datetime().or(z.date()).optional().transform((val) => val ? new Date(val) : undefined),
-  estimated_duration: z.number().int().positive().optional().transform((val) => val ?? undefined),
-  actual_duration: z.number().int().positive().optional().transform((val) => val ?? undefined),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
-  archived: z.boolean().optional(),
-  version: z.number().int().positive().optional(),
-});
-
-const updateProgressSchema = z.object({
-  status: z.enum(['completed', 'in_progress']).optional(),
-  actual_duration: z.number().int().positive().optional(),
-  notes: z.string().max(2000).optional(),
-});
-
-const submitTaskSchema = z.object({
-  recordingId: z.string().uuid('Invalid recording ID'),
-});
-
-const submitReviewSchema = z.object({
-  status: z.enum(['completed', 'rejected'], {
-    errorMap: () => ({ message: 'Status must be completed or rejected' }),
-  }),
-  feedback: z.string().max(5000, 'Feedback must be 5000 characters or less').optional(),
-});
+// Import validation schemas from centralized schema file (Fix #6 - remove duplicate schemas)
+import {
+  createTaskSchema,
+  updateTaskSchema,
+  updateTaskProgressSchema as updateProgressSchema,
+  submitTaskSchema,
+  submitReviewSchema,
+} from '../schemas/task.schema';
 
 /**
  * Helper function to ensure organizationId is not undefined.

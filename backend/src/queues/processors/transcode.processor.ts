@@ -5,45 +5,25 @@ import { QUEUE_CONFIGS, WORKER_CONCURRENCY } from '../../config/bullmq';
 import { logger } from '../../utils/logger';
 import { db } from '../../config/database';
 import ffmpegService from '../../services/ffmpeg.service';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-// Storage path generation and bucket resolution
-import { getRecordingBucket, generateTranscodeKey } from '../../config/s3';
+// Centralized S3 client and path generation (Fix #13 - consolidated S3 initialization)
+import { getS3Client, getRecordingBucket, generateTranscodeKey } from '../../config/s3';
 
 /**
  * Transcode Processor
  * Processes video transcoding jobs using FFmpeg.
  */
 export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, TranscodeJobResult> {
-  private s3Client: S3Client | null = null;
   private tempDir: string;
 
   constructor() {
     super(QUEUE_CONFIGS.transcode.name, WORKER_CONCURRENCY.transcode);
     this.tempDir = path.join(os.tmpdir(), 'cogveri-transcode');
-
-    // Initialize S3 client
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-      const s3Config: any = {
-        region: process.env.AWS_REGION || 'auto',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
-      };
-
-      if (process.env.AWS_ENDPOINT_URL) {
-        s3Config.endpoint = process.env.AWS_ENDPOINT_URL;
-        s3Config.forcePathStyle = true;
-      }
-
-      this.s3Client = new S3Client(s3Config);
-    }
-
     this.ensureTempDir();
   }
 
@@ -157,7 +137,8 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
       });
 
       // Delete original webm file and update recording to point to MP4
-      if (recording && this.s3Client && bucket) {
+      const s3Client = getS3Client();
+      if (recording && s3Client && bucket) {
         const originalKey = recording.storage_key;
 
         // Generate the new MP4 key using org-scoped path
@@ -182,7 +163,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
         // Delete original webm file
         if (originalKey) {
           try {
-            await this.s3Client.send(new DeleteObjectCommand({
+            await s3Client.send(new DeleteObjectCommand({
               Bucket: bucket,
               Key: originalKey,
             }));
@@ -268,30 +249,33 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
       const buffer = await response.arrayBuffer();
       await fs.writeFile(destPath, Buffer.from(buffer));
       logger.info(`Downloaded ${buffer.byteLength} bytes to ${destPath}`);
-    } else if (this.s3Client && process.env.AWS_S3_BUCKET) {
-      // Generate signed URL and download
-      const key = url.startsWith('s3://') ? url.slice(5) : url;
-      const [bucket, ...keyParts] = key.split('/');
-      const actualKey = keyParts.join('/');
-
-      logger.info(`Downloading from S3: bucket=${bucket || process.env.AWS_S3_BUCKET}, key=${actualKey || key}`);
-      const command = new GetObjectCommand({
-        Bucket: bucket || process.env.AWS_S3_BUCKET,
-        Key: actualKey || key,
-      });
-
-      const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
-      const response = await fetch(signedUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download from S3: HTTP ${response.status} ${response.statusText}`);
-      }
-      const buffer = await response.arrayBuffer();
-      await fs.writeFile(destPath, Buffer.from(buffer));
-      logger.info(`Downloaded ${buffer.byteLength} bytes to ${destPath}`);
     } else {
-      // Local file
-      logger.info(`Copying local file: ${url}`);
-      await fs.copyFile(url.replace('file://', ''), destPath);
+      const s3Client = getS3Client();
+      if (s3Client && process.env.AWS_S3_BUCKET) {
+        // Generate signed URL and download
+        const key = url.startsWith('s3://') ? url.slice(5) : url;
+        const [bucket, ...keyParts] = key.split('/');
+        const actualKey = keyParts.join('/');
+
+        logger.info(`Downloading from S3: bucket=${bucket || process.env.AWS_S3_BUCKET}, key=${actualKey || key}`);
+        const command = new GetObjectCommand({
+          Bucket: bucket || process.env.AWS_S3_BUCKET,
+          Key: actualKey || key,
+        });
+
+        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+        const response = await fetch(signedUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to download from S3: HTTP ${response.status} ${response.statusText}`);
+        }
+        const buffer = await response.arrayBuffer();
+        await fs.writeFile(destPath, Buffer.from(buffer));
+        logger.info(`Downloaded ${buffer.byteLength} bytes to ${destPath}`);
+      } else {
+        // Local file
+        logger.info(`Copying local file: ${url}`);
+        await fs.copyFile(url.replace('file://', ''), destPath);
+      }
     }
   }
 
@@ -310,7 +294,8 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
     // Use org-scoped path: {orgSlug}/recordings/{recordingId}/variants/{fileName}
     const key = generateTranscodeKey(orgSlug, recordingId, `${recordingId}_${quality}`, format);
 
-    if (this.s3Client && bucket) {
+    const s3Client = getS3Client();
+    if (s3Client && bucket) {
       const fileContent = await fs.readFile(filePath);
 
       const command = new PutObjectCommand({
@@ -320,7 +305,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
         ContentType: format === 'mp4' ? 'video/mp4' : 'video/webm',
       });
 
-      await this.s3Client.send(command);
+      await s3Client.send(command);
 
       // Generate URL
       const getCommand = new GetObjectCommand({
@@ -329,7 +314,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
       });
 
       // SECURITY: Reduced from 7 days to 4 hours - regenerate URLs as needed
-      return await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 4 });
+      return await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 * 4 });
     } else {
       // Local storage - use org-scoped path
       const localDir = path.join(process.cwd(), 'uploads', orgSlug, 'recordings', recordingId, 'variants');

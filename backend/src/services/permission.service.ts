@@ -1,3 +1,12 @@
+/**
+ * PermissionService (singular)
+ *
+ * Database-based granular permission system for resource-level access control.
+ * Uses tables: user_roles, role_permissions, permissions, resource_access
+ *
+ * For organization role-based permissions (OWNER/ADMIN/CREATOR/etc.),
+ * see permissions.service.ts (PermissionsService, plural).
+ */
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
 

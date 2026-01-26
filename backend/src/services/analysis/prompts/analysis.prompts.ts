@@ -233,7 +233,8 @@ Return a JSON object with this exact structure:
       "elementsMissing": ["element2"],
       "actionsFound": ["action1"],
       "actionsMissing": ["action2"],
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "observation": "Brief description of what was visually witnessed (e.g., 'User clicked the Submit button and a confirmation dialog appeared showing the order total')"
     }
   ]
 }

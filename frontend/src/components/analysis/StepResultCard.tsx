@@ -173,6 +173,15 @@ export function StepResultCard({ result, onSeek }: StepResultCardProps) {
                 Visual Evidence
               </h5>
 
+              {/* Observation - what was witnessed */}
+              {result.visualEvidence.observation && (
+                <div className="mb-3 bg-white rounded p-3 border border-green-100">
+                  <p className="text-sm text-gray-700 italic">
+                    "{result.visualEvidence.observation}"
+                  </p>
+                </div>
+              )}
+
               {/* Detected elements */}
               {result.visualEvidence.detectedElements?.length > 0 && (
                 <div className="mb-3">

@@ -12,7 +12,11 @@ const router = Router();
  */
 router.use((req: Request, res: Response, next: NextFunction): void => {
   const isProduction = process.env.NODE_ENV === 'production';
-  const isStaging = process.env.ENVIRONMENT === 'staging' || process.env.APP_ENV === 'staging';
+  const frontendUrl = process.env.FRONTEND_URL || '';
+  const isStaging =
+    process.env.ENVIRONMENT === 'staging' ||
+    process.env.APP_ENV === 'staging' ||
+    frontendUrl.includes('staging');
 
   // Block in production, but allow in staging for testing
   if (isProduction && !isStaging) {

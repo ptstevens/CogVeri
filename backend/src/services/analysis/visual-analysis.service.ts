@@ -59,6 +59,7 @@ class VisualAnalysisService {
       // Batch frames for efficient API calls
       const batches = this.createBatches(frames, this.BATCH_SIZE);
       const allFrameAnalysis: any[] = [];
+      const allStepMatches: any[] = [];
       const totalTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
       for (let i = 0; i < batches.length; i++) {
@@ -66,8 +67,9 @@ class VisualAnalysisService {
         logger.debug(`Analyzing frame batch ${i + 1}/${batches.length}`);
 
         try {
-          const { analysis, tokens } = await this.analyzeBatch(batch ?? [], stepsWithVisual);
+          const { analysis, stepMatches, tokens } = await this.analyzeBatch(batch ?? [], stepsWithVisual);
           allFrameAnalysis.push(...analysis);
+          allStepMatches.push(...stepMatches);
           totalTokens.inputTokens += tokens.inputTokens;
           totalTokens.outputTokens += tokens.outputTokens;
           totalTokens.totalTokens += tokens.totalTokens;
@@ -81,8 +83,8 @@ class VisualAnalysisService {
         }
       }
 
-      // Aggregate results per step
-      const results = this.aggregateResults(allFrameAnalysis, stepsWithVisual);
+      // Aggregate results per step (include stepMatches for observations)
+      const results = this.aggregateResults(allFrameAnalysis, stepsWithVisual, allStepMatches);
 
       logger.info(
         `Visual analysis complete: ${frames.length} frames, ${stepsWithVisual.length} steps, ` +
@@ -118,7 +120,7 @@ class VisualAnalysisService {
   private async analyzeBatch(
     frames: ExtractedFrame[],
     steps: RubricStep[]
-  ): Promise<{ analysis: any[]; tokens: TokenUsage }> {
+  ): Promise<{ analysis: any[]; stepMatches: any[]; tokens: TokenUsage }> {
     const prompt = buildVisualAnalysisPrompt(
       frames.map(f => ({ index: f.index, timestampSeconds: f.timestampSeconds })),
       steps
@@ -147,6 +149,7 @@ class VisualAnalysisService {
     if (validImageParts.length === 0) {
       return {
         analysis: [],
+        stepMatches: [],
         tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       };
     }
@@ -180,6 +183,7 @@ class VisualAnalysisService {
 
     return {
       analysis: parsed.frameAnalysis || [],
+      stepMatches: parsed.stepMatches || [],
       tokens,
     };
   }
@@ -244,7 +248,8 @@ class VisualAnalysisService {
    */
   private aggregateResults(
     frameAnalysis: any[],
-    steps: RubricStep[]
+    steps: RubricStep[],
+    stepMatches: any[] = []
   ): VisualAnalysisResult[] {
     return steps.map(step => {
       const visual = step.visualCriteria;
@@ -313,6 +318,10 @@ class VisualAnalysisService {
       else if (ratio >= 0.4) score = 'PARTIAL';
       else score = 'NO';
 
+      // Find observation from stepMatches (Gemini's description of what was witnessed)
+      const matchedStep = stepMatches.find(m => m.stepId === step.id);
+      const observation = matchedStep?.observation || undefined;
+
       return {
         stepId: step.id,
         score,
@@ -324,8 +333,9 @@ class VisualAnalysisService {
           actionsMissing,
           visualScore: score as 'YES' | 'PARTIAL' | 'NO',
           visualConfidence: ratio,
+          observation,
         },
-        reasoning: `Found ${found}/${totalRequired} expected elements/actions`,
+        reasoning: observation || `Found ${found}/${totalRequired} expected elements/actions`,
       };
     });
   }

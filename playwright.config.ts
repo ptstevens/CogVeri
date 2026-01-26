@@ -37,8 +37,8 @@ const environments = {
     startServers: true,
   },
   staging: {
-    frontendUrl: process.env.STAGING_FRONTEND_URL || 'https://staging.cogveri.app',
-    backendUrl: process.env.STAGING_BACKEND_URL || 'https://staging-api.cogveri.app',
+    frontendUrl: process.env.STAGING_FRONTEND_URL || 'https://staging.cogveri.com',
+    backendUrl: process.env.STAGING_BACKEND_URL || 'http://api-staging.cogveri.com',
     startServers: false,
   },
   production: {

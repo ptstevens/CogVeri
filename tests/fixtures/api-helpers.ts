@@ -21,8 +21,14 @@ const TEST_ENV = process.env.TEST_ENV || 'local';
 
 const BACKEND_URLS: Record<string, string> = {
   local: 'http://localhost:3000',
-  staging: process.env.STAGING_BACKEND_URL || 'https://staging-api.cogveri.app',
-  production: process.env.PROD_BACKEND_URL || 'https://api.cogveri.app',
+  staging: process.env.STAGING_BACKEND_URL || 'http://api-staging.cogveri.com',
+  production: process.env.PROD_BACKEND_URL || 'https://api.cogveri.com',
+};
+
+const FRONTEND_URLS: Record<string, string> = {
+  local: 'http://localhost:5173',
+  staging: process.env.STAGING_FRONTEND_URL || 'https://staging.cogveri.com',
+  production: process.env.PROD_FRONTEND_URL || 'https://cogveri.com',
 };
 
 /**
@@ -30,6 +36,13 @@ const BACKEND_URLS: Record<string, string> = {
  */
 export function getBackendUrl(): string {
   return BACKEND_URLS[TEST_ENV] || BACKEND_URLS.local;
+}
+
+/**
+ * Get the frontend URL for the current test environment
+ */
+export function getFrontendUrl(): string {
+  return FRONTEND_URLS[TEST_ENV] || FRONTEND_URLS.local;
 }
 
 // ============================================================================

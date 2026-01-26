@@ -127,7 +127,7 @@ test.describe('Organization Selection Flow', () => {
     const token = await getAuthToken(page);
     expect(token).toBeTruthy();
 
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ test.describe('API Token Validation', () => {
   test('should reject requests with invalid token', async ({ page }) => {
     const invalidToken = 'invalid.token.here';
 
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         Authorization: `Bearer ${invalidToken}`,
         'Content-Type': 'application/json',
@@ -188,7 +188,7 @@ test.describe('API Token Validation', () => {
   });
 
   test('should reject requests without token', async ({ page }) => {
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         'Content-Type': 'application/json',
       },

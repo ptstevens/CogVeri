@@ -70,7 +70,7 @@ test.describe('Smoke Tests - Core Flow Verification', () => {
     expect(token).toBeTruthy();
 
     // Now call the organizations endpoint
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',

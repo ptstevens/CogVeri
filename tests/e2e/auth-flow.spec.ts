@@ -1,12 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { loginAs, logout, getAuthToken } from '../fixtures/auth';
+import { TEST_USERS } from '../fixtures/test-data';
+import { getBackendUrl } from '../fixtures/api-helpers';
 
 test.describe('Authentication Flow', () => {
   test('should display login page on initial visit', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'networkidle' });
+
+    // Wait for React app to render login form
+    await page.waitForSelector('input, button', { timeout: 10000 });
 
     // Check for login form elements
-    const emailInputs = await page.locator('input[type="email"], [placeholder*="email" i]').all();
+    const emailInputs = await page.locator('input[type="email"], input[name="email"], [placeholder*="email" i]').all();
     expect(emailInputs.length).toBeGreaterThan(0);
 
     const passwordInputs = await page
@@ -19,8 +24,7 @@ test.describe('Authentication Flow', () => {
   });
 
   test('should successfully login with valid credentials', async ({ page }) => {
-    const email = 'admin@relay.company.com';
-    const password = 'password123';
+    const { email, password } = TEST_USERS.admin;
 
     await loginAs(page, email, password);
 
@@ -67,7 +71,7 @@ test.describe('Authentication Flow', () => {
 
   test('should logout successfully', async ({ page }) => {
     // First login
-    await loginAs(page, 'admin@relay.company.com', 'password123');
+    await loginAs(page, TEST_USERS.admin.email, TEST_USERS.admin.password);
 
     let token = await getAuthToken(page);
     expect(token).toBeTruthy();
@@ -89,7 +93,7 @@ test.describe('Authentication Flow', () => {
 test.describe('Organization Selection Flow', () => {
   test.beforeEach(async ({ page }) => {
     // Login before each organization test
-    await loginAs(page, 'admin@relay.company.com', 'password123');
+    await loginAs(page, TEST_USERS.admin.email, TEST_USERS.admin.password);
   });
 
   test('should display user organizations after login', async ({ page }) => {
@@ -127,7 +131,7 @@ test.describe('Organization Selection Flow', () => {
     const token = await getAuthToken(page);
     expect(token).toBeTruthy();
 
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -175,7 +179,7 @@ test.describe('API Token Validation', () => {
   test('should reject requests with invalid token', async ({ page }) => {
     const invalidToken = 'invalid.token.here';
 
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         Authorization: `Bearer ${invalidToken}`,
         'Content-Type': 'application/json',
@@ -188,7 +192,7 @@ test.describe('API Token Validation', () => {
   });
 
   test('should reject requests without token', async ({ page }) => {
-    const response = await page.request.get('http://localhost:3000/api/organizations/user', {
+    const response = await page.request.get(`${getBackendUrl()}/api/organizations/user`, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -198,7 +202,7 @@ test.describe('API Token Validation', () => {
   });
 
   test('token should have correct structure with type field', async ({ page }) => {
-    await loginAs(page, 'admin@relay.company.com', 'password123');
+    await loginAs(page, TEST_USERS.admin.email, TEST_USERS.admin.password);
 
     const token = await getAuthToken(page);
     expect(token).toBeTruthy();

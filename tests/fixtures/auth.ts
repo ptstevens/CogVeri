@@ -51,7 +51,7 @@ export async function loginAs(page: Page, email: string, password: string) {
         .waitForFunction(
           () => {
             const token =
-              localStorage.getItem('cogveri_auth_token|cogveri_refresh_token') || localStorage.getItem('auth_token');
+              localStorage.getItem('cogveri_auth_token') || localStorage.getItem('auth_token');
             return !!token;
           },
           { timeout: 10000 }
@@ -67,9 +67,9 @@ export async function loginAs(page: Page, email: string, password: string) {
 
   // Extract tokens from localStorage
   const tokens = await page.evaluate(() => {
-    const token = localStorage.getItem('cogveri_auth_token|cogveri_refresh_token') || localStorage.getItem('auth_token');
+    const token = localStorage.getItem('cogveri_auth_token') || localStorage.getItem('auth_token');
     const refreshToken =
-      localStorage.getItem('cogveri_auth_token|cogveri_refresh_token') || localStorage.getItem('refresh_token');
+      localStorage.getItem('cogveri_auth_token') || localStorage.getItem('refresh_token');
     return { token, refreshToken };
   });
 
@@ -82,9 +82,9 @@ export async function loginAs(page: Page, email: string, password: string) {
 export async function isLoggedIn(page: Page): Promise<boolean> {
   const token = await page.evaluate(() => {
     return (
-      localStorage.getItem('cogveri_auth_token|cogveri_refresh_token') ||
+      localStorage.getItem('cogveri_auth_token') ||
       localStorage.getItem('auth_token') ||
-      sessionStorage.getItem('cogveri_auth_token|cogveri_refresh_token') ||
+      sessionStorage.getItem('cogveri_auth_token') ||
       sessionStorage.getItem('auth_token')
     );
   });
@@ -97,13 +97,13 @@ export async function isLoggedIn(page: Page): Promise<boolean> {
  */
 export async function logout(page: Page) {
   await page.evaluate(() => {
-    localStorage.removeItem('cogveri_auth_token|cogveri_refresh_token');
+    localStorage.removeItem('cogveri_auth_token');
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('cogveri_auth_token|cogveri_refresh_token');
+    localStorage.removeItem('cogveri_auth_token');
     localStorage.removeItem('refresh_token');
-    sessionStorage.removeItem('cogveri_auth_token|cogveri_refresh_token');
+    sessionStorage.removeItem('cogveri_auth_token');
     sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('cogveri_auth_token|cogveri_refresh_token');
+    sessionStorage.removeItem('cogveri_auth_token');
     sessionStorage.removeItem('refresh_token');
   });
 
@@ -122,9 +122,9 @@ export async function logout(page: Page) {
 export async function getAuthToken(page: Page): Promise<string | null> {
   return page.evaluate(() => {
     return (
-      localStorage.getItem('cogveri_auth_token|cogveri_refresh_token') ||
+      localStorage.getItem('cogveri_auth_token') ||
       localStorage.getItem('auth_token') ||
-      sessionStorage.getItem('cogveri_auth_token|cogveri_refresh_token') ||
+      sessionStorage.getItem('cogveri_auth_token') ||
       sessionStorage.getItem('auth_token')
     );
   });

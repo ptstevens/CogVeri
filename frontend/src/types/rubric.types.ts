@@ -133,6 +133,8 @@ export interface VisualEvidence {
   frameUrls: string[];
   /** Timestamps where evidence was found (in seconds) */
   timestamps: number[];
+  /** Natural language description of what was visually observed */
+  observation?: string;
 }
 
 // =============================================================================

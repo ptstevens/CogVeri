@@ -436,6 +436,8 @@ export interface VisualEvidence {
   representativeFrameUrl?: string;
   visualScore: 'YES' | 'PARTIAL' | 'NO';
   visualConfidence: number;
+  /** Natural language description of what was visually observed */
+  observation?: string;
 }
 
 /**

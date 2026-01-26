@@ -44,13 +44,45 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const isCleaningUp = useRef(false);
+  const currentTokenRef = useRef<string | null>(null);
+
+  // Extract stable user identifiers to prevent unnecessary socket recreation
+  // when user object reference changes but identity remains the same
+  const userId = user?.id;
+  const userOrgId = user?.org_id;
+
+  // Subscribe to token changes to update socket auth on refresh
+  useEffect(() => {
+    const unsubscribe = tokenService.onTokenChange((newToken) => {
+      // Only act if we have a socket and the token actually changed
+      if (socket && newToken && newToken !== currentTokenRef.current) {
+        console.log('[Socket] Token refreshed, updating socket auth');
+        currentTokenRef.current = newToken;
+
+        // Update socket auth for next reconnection
+        socket.auth = { token: newToken };
+
+        // If currently disconnected due to auth error, try to reconnect
+        if (!socket.connected && connectionError?.includes('Authentication')) {
+          console.log('[Socket] Reconnecting with new token');
+          setConnectionError(null);
+          reconnectAttempts.current = 0;
+          socket.connect();
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [socket, connectionError]);
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    // Use stable userId instead of user object to prevent unnecessary reconnections
+    if (!isAuthenticated || !userId) {
       return;
     }
 
     const token = tokenService.getAccessToken();
+    currentTokenRef.current = token;
 
     // Don't attempt connection without a valid token
     if (!token) {
@@ -85,9 +117,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       console.log('[Socket] Connected successfully');
 
       // Auto-join organization room to receive org-level events (e.g., subscription changes)
-      if (user?.org_id) {
-        newSocket.emit('join:organization', user.org_id);
-        console.log('[Socket] Joined organization room:', user.org_id);
+      if (userOrgId) {
+        newSocket.emit('join:organization', userOrgId);
+        console.log('[Socket] Joined organization room:', userOrgId);
       }
     });
 
@@ -218,7 +250,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
       isCleaningUp.current = true;
       newSocket.disconnect();
     };
-  }, [isAuthenticated, user, queryClient]);
+    // Use userId and userOrgId instead of user object to prevent unnecessary reconnections
+    // when user object reference changes but identity remains the same (e.g., after token refresh)
+  }, [isAuthenticated, userId, userOrgId, queryClient]);
 
   const joinTaskRoom = useCallback((taskId: string) => {
     socket?.emit('join:task', taskId);

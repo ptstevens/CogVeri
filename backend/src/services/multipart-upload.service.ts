@@ -2,7 +2,6 @@ import { db } from '../config/database';
 import { NotFoundError, BadRequestError, InternalServerError, ServiceUnavailableError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import {
-  S3Client,
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
@@ -20,8 +19,8 @@ import { transcodeQueueHelpers } from '../queues/definitions/transcode.queue';
 import { TranscodeQuality } from '../queues/types/job-types';
 // SECURITY: File validation using magic bytes instead of trusting client MIME types
 import { validateVideoFile } from '../utils/file-validation';
-// Storage path generation and bucket resolution
-import { resolveOrganizationBucket, generateRecordingKey } from '../config/s3';
+// Centralized S3 client and path generation (Fix #13 - consolidated S3 initialization)
+import { getS3Client, isS3Available, getS3Bucket, resolveOrganizationBucket, generateRecordingKey } from '../config/s3';
 
 // Types
 export interface UploadSession {
@@ -88,39 +87,13 @@ export interface PresignPartResponse {
 }
 
 class MultipartUploadService {
-  private s3Client: S3Client | null = null;
-  private bucket: string | null = null;
-
-  constructor() {
-    // Initialize S3 client if AWS credentials are configured
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_S3_BUCKET) {
-      const s3Config: any = {
-        region: process.env.AWS_REGION || 'auto',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
-      };
-
-      // Add custom endpoint for Cloudflare R2
-      if (process.env.AWS_ENDPOINT_URL) {
-        s3Config.endpoint = process.env.AWS_ENDPOINT_URL;
-        s3Config.forcePathStyle = true; // Required for R2
-      }
-
-      this.s3Client = new S3Client(s3Config);
-      this.bucket = process.env.AWS_S3_BUCKET;
-      logger.info('Multipart upload service initialized with S3/R2');
-    } else {
-      logger.warn('Multipart upload service: S3/R2 not configured, chunked uploads will not work');
-    }
-  }
+  // S3 client is now centralized in config/s3.ts (Fix #13)
 
   /**
    * Check if multipart upload is available (S3/R2 configured)
    */
   isAvailable(): boolean {
-    return this.s3Client !== null && this.bucket !== null;
+    return isS3Available() && getS3Bucket() !== undefined;
   }
 
   /**
@@ -132,7 +105,9 @@ class MultipartUploadService {
     organizationId: string,
     externalContributorId?: string
   ): Promise<InitiateUploadResponse> {
-    if (!this.s3Client || !this.bucket) {
+    const s3Client = getS3Client();
+    const bucket = getS3Bucket();
+    if (!s3Client || !bucket) {
       throw new BadRequestError('Multipart upload not available - S3/R2 not configured');
     }
 
@@ -176,7 +151,7 @@ class MultipartUploadService {
         },
       });
 
-      const response = await this.s3Client.send(createCommand);
+      const response = await s3Client.send(createCommand);
       const uploadId = response.UploadId;
 
       if (!uploadId) {
@@ -258,7 +233,8 @@ class MultipartUploadService {
     partNumber: number,
     organizationId: string
   ): Promise<PresignPartResponse> {
-    if (!this.s3Client) {
+    const s3Client = getS3Client();
+    if (!s3Client) {
       throw new BadRequestError('Multipart upload not available');
     }
 
@@ -279,7 +255,7 @@ class MultipartUploadService {
 
     // URL expires in 1 hour
     const expiresIn = 3600;
-    const presignedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn });
 
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + expiresIn);
@@ -368,7 +344,8 @@ class MultipartUploadService {
     data: CompleteUploadDto,
     organizationId: string
   ): Promise<{ recording: any; fileUrl: string }> {
-    if (!this.s3Client) {
+    const s3Client = getS3Client();
+    if (!s3Client) {
       throw new BadRequestError('Multipart upload not available');
     }
 
@@ -439,7 +416,7 @@ class MultipartUploadService {
         },
       });
 
-      await this.s3Client.send(completeCommand);
+      await s3Client.send(completeCommand);
       logger.info(`Multipart upload completed: ${session.s3_upload_id}`);
 
       // SECURITY: Validate file content using magic bytes after upload completes
@@ -450,7 +427,7 @@ class MultipartUploadService {
           Key: session.s3_key,
           Range: 'bytes=0-8191', // First 8KB is enough for magic byte detection
         });
-        const headResponse = await this.s3Client.send(headCommand);
+        const headResponse = await s3Client.send(headCommand);
 
         if (headResponse.Body) {
           const chunks: Uint8Array[] = [];
@@ -483,7 +460,7 @@ class MultipartUploadService {
                 Bucket: session.s3_bucket,
                 Key: session.s3_key,
               });
-              await this.s3Client.send(deleteCommand);
+              await s3Client.send(deleteCommand);
               logger.info(`Deleted invalid file from S3: ${session.s3_key}`);
 
               // Mark session as failed
@@ -517,7 +494,7 @@ class MultipartUploadService {
         Key: session.s3_key,
       });
       // SECURITY: Reduced from 7 days to 4 hours - regenerate URLs as needed
-      const fileUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 4 });
+      const fileUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 * 4 });
 
       // Calculate total size
       const totalSize = (session.uploaded_parts || []).reduce(
@@ -776,7 +753,8 @@ class MultipartUploadService {
    * Abort a multipart upload
    */
   async abortUpload(sessionId: string, organizationId: string): Promise<void> {
-    if (!this.s3Client) {
+    const s3Client = getS3Client();
+    if (!s3Client) {
       throw new BadRequestError('Multipart upload not available');
     }
 
@@ -794,7 +772,7 @@ class MultipartUploadService {
         UploadId: session.s3_upload_id,
       });
 
-      await this.s3Client.send(abortCommand);
+      await s3Client.send(abortCommand);
       logger.info(`Multipart upload aborted: ${session.s3_upload_id}`);
 
       // Update session
@@ -853,7 +831,8 @@ class MultipartUploadService {
    * Cleanup expired and abandoned upload sessions
    */
   async cleanupExpiredSessions(): Promise<number> {
-    if (!this.s3Client) {
+    const s3Client = getS3Client();
+    if (!s3Client) {
       return 0;
     }
 
@@ -874,7 +853,7 @@ class MultipartUploadService {
           UploadId: session.s3_upload_id,
         });
 
-        await this.s3Client.send(abortCommand);
+        await s3Client.send(abortCommand);
 
         // Update session
         await db('upload_sessions')

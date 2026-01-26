@@ -1,4 +1,12 @@
-// import { prisma } from '../db/prisma'; // TODO: Not using Prisma - use Knex instead
+/**
+ * PermissionsService (plural)
+ *
+ * Organization role-based permission system using static permission sets.
+ * Handles OWNER/ADMIN/CREATOR/REVIEWER/VIEWER/LIMITED roles.
+ *
+ * For granular resource-level permissions (database-based),
+ * see permission.service.ts (PermissionService, singular).
+ */
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
 

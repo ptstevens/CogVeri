@@ -1,6 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { emailService } from '../services/email.service';
 import { logger } from '../utils/logger';
+import { getSendEmailQueue } from '../queues/definitions/send-email.queue';
+import { EmailTemplate } from '../queues/types/job-types';
 
 const router = Router();
 
@@ -9,7 +11,11 @@ const router = Router();
  * Test endpoints should NEVER be accessible in production environments
  */
 router.use((req: Request, res: Response, next: NextFunction): void => {
-  if (process.env.NODE_ENV === 'production') {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isStaging = process.env.ENVIRONMENT === 'staging' || process.env.APP_ENV === 'staging';
+
+  // Block in production, but allow in staging for testing
+  if (isProduction && !isStaging) {
     logger.warn('Attempted access to test endpoint in production', {
       path: req.path,
       method: req.method,
@@ -70,6 +76,202 @@ router.post('/test-email', async (_req: Request, res: Response) => {
       success: false,
       message: 'Failed to send test email',
       error: error.message
+    });
+  }
+});
+
+/**
+ * Send ALL email templates for testing - DEVELOPMENT ONLY
+ * Usage: POST /api/test/send-all-test-emails?email=your@email.com
+ */
+router.post('/send-all-test-emails', async (req: Request, res: Response) => {
+  const testEmail = req.query.email as string || req.body.email;
+
+  if (!testEmail) {
+    res.status(400).json({
+      success: false,
+      message: 'Email address required. Use ?email=your@email.com',
+    });
+    return;
+  }
+
+  try {
+    const queue = getSendEmailQueue();
+    const frontendUrl = process.env.FRONTEND_URL || 'https://cogveri.com';
+
+    const testEmails = [
+      // 1. Task Assignment (Indigo header)
+      {
+        name: 'Task Assignment',
+        data: {
+          template: EmailTemplate.TASK_ASSIGNMENT,
+          to: testEmail,
+          subject: '[TEST] New Task Assigned: Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          taskDescription: 'Record yourself explaining the contract end date notification workflow.',
+          taskPriority: 'high',
+          taskType: 'recording',
+          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          estimatedDuration: 30,
+          creatorName: 'Sarah Manager',
+          creatorEmail: 'sarah@example.com',
+          assigneeName: 'Test User',
+        },
+      },
+
+      // 2. Task Completion / Ready for Review (Green header)
+      {
+        name: 'Task Completion (Reviewer Notification)',
+        data: {
+          template: EmailTemplate.TASK_COMPLETION,
+          to: testEmail,
+          subject: '[TEST] Task Ready for Review: Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          reviewerName: 'Test Reviewer',
+          assigneeName: 'John Contributor',
+          assigneeEmail: 'john@example.com',
+          actualDuration: 25,
+        },
+      },
+
+      // 3. Review Notification (Indigo header - default)
+      {
+        name: 'Review Notification',
+        data: {
+          template: EmailTemplate.REVIEW_NOTIFICATION,
+          to: testEmail,
+          subject: '[TEST] Recording Ready for Review: Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          taskDescription: 'Record yourself explaining the contract end date notification workflow.',
+          taskPriority: 'high',
+          reviewerName: 'Test Reviewer',
+          assigneeName: 'Jane Doe',
+          assigneeEmail: 'jane@example.com',
+        },
+      },
+
+      // 4. Task Rejection - Internal User (Red header)
+      {
+        name: 'Task Rejection (Internal)',
+        data: {
+          template: EmailTemplate.TASK_REJECTION,
+          to: testEmail,
+          subject: '[TEST] Task Requires Revision: Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          taskDescription: 'Record yourself explaining the contract end date notification workflow.',
+          reviewerName: 'Sarah Manager',
+          reviewerEmail: 'sarah@example.com',
+          assigneeName: 'Test User',
+          feedback: 'Great start! However, please make sure to cover the notification timeline more clearly. Also, the audio was a bit quiet in the second half - please re-record with better microphone positioning.',
+        },
+      },
+
+      // 5. Task Reminder (Amber header)
+      {
+        name: 'Task Reminder',
+        data: {
+          template: EmailTemplate.TASK_REMINDER,
+          to: testEmail,
+          subject: '[TEST] Reminder: Task Due Soon - Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+          assigneeName: 'Test User',
+        },
+      },
+
+      // 6. External Task Approved (Green header)
+      {
+        name: 'External Task Approved',
+        data: {
+          template: EmailTemplate.EXTERNAL_TASK_APPROVED,
+          to: testEmail,
+          subject: '[TEST] Your Recording Has Been Approved!',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          taskDescription: 'Record yourself explaining the contract end date notification workflow.',
+          contributorFirstName: 'Test',
+          contributorLastName: 'User',
+          reviewerName: 'Sarah Manager',
+          reviewerEmail: 'sarah@example.com',
+          feedback: 'Excellent explanation! Very clear and well-structured. Thank you for your contribution.',
+        },
+      },
+
+      // 7. External Task Rejected / Redo Request (Red header) - WHITE LOGO TEST
+      {
+        name: 'External Task Rejected (Redo Request)',
+        data: {
+          template: EmailTemplate.EXTERNAL_TASK_REJECTED,
+          to: testEmail,
+          subject: '[TEST] Task Requires Revision: Contract Review Process',
+          taskId: 'test-task-001',
+          taskTitle: 'Contract Review Process',
+          taskDescription: 'Record yourself explaining the contract end date notification workflow.',
+          contributorFirstName: 'Test',
+          contributorLastName: 'User',
+          reviewerName: 'Sarah Manager',
+          reviewerEmail: 'sarah@example.com',
+          feedback: 'Thank you for your submission! The content was good, but unfortunately the video quality was too low and there was significant background noise. Please re-record in a quieter environment with better lighting.',
+          newMagicLink: `${frontendUrl}/external/task/abc123-magic-link-token`,
+        },
+      },
+
+      // 8. Magic Link (Indigo header - default)
+      {
+        name: 'Magic Link',
+        data: {
+          template: EmailTemplate.MAGIC_LINK,
+          to: testEmail,
+          subject: '[TEST] Your Task Access Link',
+          recipientName: 'Test User',
+          magicLinkUrl: `${frontendUrl}/external/task/abc123-magic-link-token`,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          taskTitle: 'Contract Review Process',
+        },
+      },
+    ];
+
+    logger.info(`Queueing ${testEmails.length} test emails to: ${testEmail}`);
+
+    const results = [];
+    for (const email of testEmails) {
+      try {
+        await queue.addHighPriority(email.data as any);
+        results.push({ name: email.name, status: 'queued' });
+        logger.info(`Queued test email: ${email.name}`);
+      } catch (error: any) {
+        results.push({ name: email.name, status: 'failed', error: error.message });
+        logger.error(`Failed to queue test email: ${email.name}`, error);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${results.filter(r => r.status === 'queued').length} of ${testEmails.length} test emails queued`,
+      recipient: testEmail,
+      emails: results,
+      templates: [
+        '1. Task Assignment (Indigo banner)',
+        '2. Task Completion (Green banner)',
+        '3. Review Notification (Indigo banner)',
+        '4. Task Rejection - Internal (Red banner)',
+        '5. Task Reminder (Amber banner)',
+        '6. External Task Approved (Green banner)',
+        '7. External Task Rejected/Redo (Red banner) ← White logo test',
+        '8. Magic Link (Indigo banner)',
+      ],
+    });
+  } catch (error: any) {
+    logger.error('Failed to send test emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to queue test emails',
+      error: error.message,
     });
   }
 });

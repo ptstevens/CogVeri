@@ -6,11 +6,10 @@
 
 import { getTextAnalysisModel, estimateCost, TokenUsage } from '../../config/gemini';
 import { RubricStep, SpeechEvidence, StepScoreValue } from '../../queues/types/job-types';
-import {
-  SPEECH_ANALYSIS_SYSTEM_PROMPT,
-  buildSpeechAnalysisPrompt,
-} from './prompts/analysis.prompts';
+import { buildSpeechAnalysisPrompt } from './prompts/analysis.prompts';
+import { getSpeechAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
+import { geminiRateLimiter } from './gemini-rate-limiter';
 
 /**
  * Transcript segment from database
@@ -109,9 +108,15 @@ class SpeechAnalysisService {
         stepsWithSpeech
       );
 
+      // Wait for rate limit capacity (estimate ~5K tokens for speech analysis)
+      await geminiRateLimiter.waitForCapacity(5000);
+
+      // Fetch system prompt (from DB with fallback to hardcoded)
+      const systemPrompt = await getSpeechAnalysisPrompt();
+
       // Call Gemini
       const result = await this.model.generateContent([
-        { text: SPEECH_ANALYSIS_SYSTEM_PROMPT },
+        { text: systemPrompt },
         { text: prompt },
       ]);
 
@@ -125,6 +130,9 @@ class SpeechAnalysisService {
         outputTokens: usageMetadata?.candidatesTokenCount || 0,
         totalTokens: usageMetadata?.totalTokenCount || 0,
       };
+
+      // Record actual usage for rate limiting
+      geminiRateLimiter.recordUsage(tokensUsed.totalTokens);
 
       // Parse the JSON response
       const analysisResults = this.parseAnalysisResponse(responseText, stepsWithSpeech);
@@ -158,10 +166,17 @@ class SpeechAnalysisService {
   ): SpeechAnalysisResult[] {
     try {
       // Extract JSON from response (handle markdown code blocks)
-      let jsonStr = responseText;
+      let jsonStr = responseText.trim();
+
+      // Try to match complete code blocks first
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonStr = jsonMatch[1].trim();
+      } else {
+        // Fallback: strip opening/closing code fences separately
+        // Handles cases where AI returns partial code blocks
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '');
+        jsonStr = jsonStr.replace(/\n?```\s*$/, '');
       }
 
       const parsed = JSON.parse(jsonStr);

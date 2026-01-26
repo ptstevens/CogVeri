@@ -2,25 +2,26 @@ import { db } from '../config/database';
 import { Knex } from 'knex';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/AppError';
 import { logger } from '../utils/logger';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as _uuidv4 } from 'uuid';
-import { emailService } from './email.service';
-// storageService import removed - not currently used
-import pricingService from './pricing.service';
-import { transcriptionQueueHelpers, transcodeQueueHelpers, thumbnailQueueHelpers, TranscodeQuality } from '../queues';
 // Import async context at top level (Fix #15 - avoid dynamic imports)
 import { getAsyncContext } from '../middleware/asyncContext';
 // SECURITY: File validation using magic bytes instead of trusting client MIME types
 import { assertValidVideoFile } from '../utils/file-validation';
-// Storage path generation and bucket resolution
+// Centralized S3 client and path generation (Fix #13 - consolidated S3 initialization)
 import {
+  getS3Client,
   resolveOrganizationBucket,
-  generateRecordingKey,
   generateTranscodeKey,
 } from '../config/s3';
+// Keep pricingService for feature access checks in uploadRecording
+import pricingService from './pricing.service';
+// Extracted services for better separation of concerns (Fix #1)
+import { recordingStorageService, StorageUploadResult } from './recording-storage.service';
+import { recordingQueueService } from './recording-queue.service';
 
 // Multer File type definition
 interface MulterFile {
@@ -79,45 +80,13 @@ export interface UploadRecordingDto {
   recording_id: string;
 }
 
-/**
- * Storage upload result for clean abstraction
- */
-interface StorageUploadResult {
-  fileUrl: string;
-  storageKey: string;
-  storageBucket?: string;
-  storageProvider: 'local' | 's3';
-}
+// StorageUploadResult is now imported from recording-storage.service.ts
 
 class RecordingService {
-  private s3Client: S3Client | null = null;
   private uploadDir = path.join(process.cwd(), 'uploads', 'recordings');
 
   constructor() {
-    // Initialize S3 client if AWS credentials are configured AND S3 bucket is specified
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_S3_BUCKET) {
-      const s3Config: S3ClientConfig = {
-        region: process.env.AWS_REGION || 'auto',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
-      };
-
-      // Add custom endpoint for Cloudflare R2 or other S3-compatible storage
-      if (process.env.AWS_ENDPOINT_URL) {
-        s3Config.endpoint = process.env.AWS_ENDPOINT_URL;
-        s3Config.forcePathStyle = true; // Required for R2
-        logger.info(`S3-compatible storage configured with custom endpoint: ${process.env.AWS_ENDPOINT_URL}`);
-      }
-
-      this.s3Client = new S3Client(s3Config);
-      logger.info('S3/R2 storage configured for recordings');
-    } else {
-      logger.info('Using local storage for recordings');
-    }
-
-    // Ensure local upload directory exists
+    // Ensure local upload directory exists (S3 client is now centralized in config/s3.ts)
     this.ensureUploadDir();
   }
 
@@ -131,11 +100,8 @@ class RecordingService {
   }
 
   private async ensureUploadDir(): Promise<void> {
-    try {
-      await fs.mkdir(this.uploadDir, { recursive: true });
-    } catch (error) {
-      logger.error('Failed to create upload directory:', error);
-    }
+    // Delegate to extracted storage service (Fix #1)
+    return recordingStorageService.ensureUploadDir();
   }
 
   /**
@@ -393,125 +359,16 @@ class RecordingService {
     recordingId: string,
     userId: string
   ): Promise<StorageUploadResult> {
-    // Fetch org slug for path construction
-    const org = await db('organizations')
-      .where('id', recording.organization_id)
-      .select('slug')
-      .first();
-    const orgSlug = org?.slug || 'unknown';
-
-    // Get file content - handle both memory storage (buffer) and disk storage (path)
-    let fileContent: Buffer;
-    if (file.buffer) {
-      fileContent = file.buffer;
-    } else if (file.path) {
-      fileContent = await fs.readFile(file.path);
-    } else {
-      throw new Error('No file content available for upload');
-    }
-
-    // Upload to S3 if configured, otherwise save locally
-    if (this.s3Client && process.env.AWS_S3_BUCKET) {
-      try {
-        logger.info(`Attempting S3/R2 upload for recording ${recordingId}`, {
-          fileSize: fileContent.length,
-          hasBuffer: !!file.buffer,
-          hasPath: !!file.path,
-        });
-
-        // Resolve bucket (now returns the single environment bucket)
-        const storageBucket = await resolveOrganizationBucket(recording.organization_id);
-        // Use org-scoped path: {orgSlug}/recordings/{taskId}/{recordingId}/{filename}
-        const storageKey = generateRecordingKey(orgSlug, recording.task_id, recordingId, file.originalname);
-
-        const command = new PutObjectCommand({
-          Bucket: storageBucket,
-          Key: storageKey,
-          Body: fileContent,
-          ContentType: file.mimetype,
-          Metadata: {
-            task_id: recording.task_id,
-            user_id: userId,
-            recording_id: recordingId,
-            organization_id: recording.organization_id,
-            org_slug: orgSlug,
-          },
-        });
-
-        await this.s3Client.send(command);
-        logger.info(`S3/R2 upload successful for recording ${recordingId}`, { bucket: storageBucket, orgSlug });
-
-        // Generate signed URL for access
-        const getCommand = new GetObjectCommand({
-          Bucket: storageBucket,
-          Key: storageKey,
-        });
-        // SECURITY: Reduced from 7 days to 4 hours - regenerate URLs as needed
-        const fileUrl = await getSignedUrl(this.s3Client, getCommand, { expiresIn: 3600 * 4 }); // 4 hours
-
-        return {
-          fileUrl,
-          storageKey,
-          storageBucket,
-          storageProvider: 's3',
-        };
-      } catch (s3Error) {
-        // Log S3 error and fall back to local storage
-        logger.error(`S3/R2 upload failed for recording ${recordingId}, falling back to local storage:`, s3Error);
-        return this.uploadToLocalStorage(file, recordingId, orgSlug);
-      }
-    }
-
-    return this.uploadToLocalStorage(file, recordingId, orgSlug);
-  }
-
-  /**
-   * Upload file to local storage
-   */
-  private async uploadToLocalStorage(file: MulterFile, recordingId: string, orgSlug: string): Promise<StorageUploadResult> {
-    const fileName = `${recordingId}-${Date.now()}${path.extname(file.originalname)}`;
-    // Use org-scoped local path
-    const localDir = path.join(this.uploadDir, orgSlug, 'recordings');
-    const filePath = path.join(localDir, fileName);
-
-    // Get file content - handle both memory storage (buffer) and disk storage (path)
-    let fileContent: Buffer;
-    if (file.buffer) {
-      fileContent = file.buffer;
-    } else if (file.path) {
-      fileContent = await fs.readFile(file.path);
-    } else {
-      throw new Error('No file content available for local upload');
-    }
-
-    // Ensure directory exists
-    await fs.mkdir(localDir, { recursive: true });
-    await fs.writeFile(filePath, fileContent);
-    logger.info(`Saved to local storage: ${fileName}`, { orgSlug, fileSize: fileContent.length });
-
-    return {
-      fileUrl: `/uploads/${orgSlug}/recordings/${fileName}`,
-      storageKey: `${orgSlug}/recordings/${fileName}`,
-      storageProvider: 'local',
-    };
+    // Delegate to extracted storage service (Fix #1)
+    return recordingStorageService.uploadToStorage(file, recording, recordingId, userId);
   }
 
   /**
    * Clean up uploaded file (for rollback scenarios)
    */
   private async cleanupUploadedFile(uploadResult: StorageUploadResult): Promise<void> {
-    if (uploadResult.storageProvider === 's3' && this.s3Client && uploadResult.storageBucket) {
-      const command = new DeleteObjectCommand({
-        Bucket: uploadResult.storageBucket,
-        Key: uploadResult.storageKey,
-      });
-      await this.s3Client.send(command);
-      logger.info(`Cleaned up S3 file: ${uploadResult.storageKey}`);
-    } else if (uploadResult.storageProvider === 'local') {
-      const filePath = path.join(this.uploadDir, uploadResult.storageKey);
-      await fs.unlink(filePath);
-      logger.info(`Cleaned up local file: ${uploadResult.storageKey}`);
-    }
+    // Delegate to extracted storage service (Fix #1)
+    return recordingStorageService.cleanupUploadedFile(uploadResult);
   }
 
   /**
@@ -543,132 +400,15 @@ class RecordingService {
     organizationId: string,
     orgSlug: string
   ): Promise<void> {
-    // Send email notification to reviewer (non-blocking)
-    this.sendReviewerNotification(recording, fileUrl, userId).catch(err => {
-      logger.error('Failed to send review notification:', err);
-    });
-
-    // Queue transcription job if feature is available (non-blocking)
-    this.queueTranscriptionIfEnabled(recordingId, fileUrl, userId, organizationId, orgSlug).catch(err => {
-      logger.error('Failed to queue transcription:', err);
-    });
-
-    // Queue thumbnail generation (non-blocking)
-    thumbnailQueueHelpers.queueDefaultThumbnail({
+    // Delegate to extracted queue service (Fix #1)
+    return recordingQueueService.queuePostUploadOperations(
       recordingId,
+      recording,
       fileUrl,
+      userId,
       organizationId,
-      orgSlug,
-    }).catch(err => {
-      logger.error('Failed to queue thumbnail generation:', err);
-    });
-
-    // Queue MP4 transcoding for better playback seeking support (non-blocking)
-    // Only queue medium quality for now to balance quality and processing time
-    transcodeQueueHelpers.queueTranscode({
-      recordingId,
-      inputFileUrl: fileUrl,
-      organizationId,
-      orgSlug,
-      quality: TranscodeQuality.MEDIUM,
-      outputFormat: 'mp4',
-    }).then(job => {
-      logger.info(`Transcode job queued successfully: jobId=${job?.id}, recordingId=${recordingId}`);
-    }).catch(err => {
-      logger.error('Failed to queue transcode:', { error: err.message, stack: err.stack, recordingId });
-    });
-  }
-
-  /**
-   * Send notification to reviewer about uploaded recording
-   */
-  private async sendReviewerNotification(
-    recording: Recording,
-    fileUrl: string,
-    userId: string
-  ): Promise<void> {
-    const task = await db('tasks')
-      .where('id', recording.task_id)
-      .first();
-
-    if (!task?.reviewed_by) return;
-
-    const reviewer = await db('users')
-      .where('id', task.reviewed_by)
-      .first();
-
-    // Get assignee from users or external_contributors
-    let assignee = await db('users').where('id', userId).first();
-
-    if (!assignee) {
-      const contributor = await db('external_contributors')
-        .where('id', userId)
-        .first();
-
-      if (contributor) {
-        assignee = {
-          id: contributor.id,
-          name: `${contributor.first_name || ''} ${contributor.last_name || ''}`.trim() || contributor.email,
-          email: contributor.email,
-        };
-      }
-    }
-
-    if (reviewer && assignee) {
-      await emailService.sendReviewNotification(
-        { ...task, recording_url: fileUrl },
-        reviewer,
-        assignee
-      );
-      logger.info(`Review notification sent to ${reviewer.email} for recording ${recording.id}`);
-    }
-  }
-
-  /**
-   * Queue transcription job if the organization has access to the feature
-   */
-  private async queueTranscriptionIfEnabled(
-    recordingId: string,
-    fileUrl: string,
-    userId: string,
-    organizationId: string,
-    orgSlug: string
-  ): Promise<void> {
-    // Check if transcription job already exists (deduplication - Fix #23)
-    const existingJob = await db('transcription_jobs')
-      .where('recording_id', recordingId)
-      .whereIn('status', ['pending', 'processing'])
-      .first();
-
-    if (existingJob) {
-      logger.info(`Transcription job already exists for recording ${recordingId}, skipping queue`);
-      return;
-    }
-
-    const org = await db('organizations')
-      .where('id', organizationId)
-      .select('subscription_tier')
-      .first();
-
-    const tier = org?.subscription_tier || 'free';
-    const hasTranscription = pricingService.hasFeatureAccess(tier, 'basicTranscription');
-
-    if (hasTranscription) {
-      await transcriptionQueueHelpers.queueTranscription({
-        recordingId,
-        fileUrl,
-        organizationId,
-        orgSlug,
-        userId,
-        language: 'auto',
-        options: {
-          includeTimestamps: true,
-        },
-      });
-      logger.info(`Auto-transcription queued for recording ${recordingId}`);
-    } else {
-      logger.info(`Transcription skipped for recording ${recordingId} - feature not available on ${tier} tier`);
-    }
+      orgSlug
+    );
   }
 
   /**
@@ -814,12 +554,13 @@ class RecordingService {
       // Use transaction for database operations
       await db.transaction(async (trx) => {
         // Delete file from storage (outside transaction, but before DB changes)
-        if (recording.storage_provider === 's3' && this.s3Client && recording.storage_bucket && recording.storage_key) {
+        const s3Client = getS3Client();
+        if (recording.storage_provider === 's3' && s3Client && recording.storage_bucket && recording.storage_key) {
           const command = new DeleteObjectCommand({
             Bucket: recording.storage_bucket,
             Key: recording.storage_key,
           });
-          await this.s3Client.send(command);
+          await s3Client.send(command);
         } else if (recording.storage_provider === 'local' && recording.storage_key) {
           const filePath = path.join(this.uploadDir, recording.storage_key);
           await fs.unlink(filePath).catch(err => {
@@ -881,7 +622,8 @@ class RecordingService {
       const orgSlug = org?.slug || 'unknown';
 
       // Delete all files from S3/R2 storage
-      if (this.s3Client && process.env.AWS_S3_BUCKET) {
+      const s3Client = getS3Client();
+      if (s3Client && process.env.AWS_S3_BUCKET) {
         // Resolve bucket from recording or organization
         const bucket = recording.storage_bucket ||
           await resolveOrganizationBucket(recording.organization_id);
@@ -894,7 +636,7 @@ class RecordingService {
         // Also delete the main recording file if it has a different path structure
         if (recording.storage_key && !recording.storage_key.startsWith(prefix)) {
           try {
-            await this.s3Client.send(new DeleteObjectCommand({
+            await s3Client.send(new DeleteObjectCommand({
               Bucket: bucket,
               Key: recording.storage_key,
             }));
@@ -931,36 +673,8 @@ class RecordingService {
    * Delete all objects in S3 with a given prefix
    */
   private async deleteS3Prefix(bucket: string, prefix: string): Promise<void> {
-    if (!this.s3Client) return;
-
-    try {
-      // List all objects with the prefix
-      const listResponse = await this.s3Client.send(new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: prefix,
-      }));
-
-      if (!listResponse.Contents || listResponse.Contents.length === 0) {
-        logger.debug(`No objects found with prefix: ${prefix}`);
-        return;
-      }
-
-      // Delete all found objects
-      const objectsToDelete = listResponse.Contents
-        .filter(obj => obj.Key)
-        .map(obj => ({ Key: obj.Key! }));
-
-      if (objectsToDelete.length > 0) {
-        await this.s3Client.send(new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: { Objects: objectsToDelete },
-        }));
-        logger.info(`Deleted ${objectsToDelete.length} objects with prefix: ${prefix}`);
-      }
-    } catch (error) {
-      logger.error(`Failed to delete S3 prefix ${prefix}:`, error);
-      // Don't throw - storage cleanup failure shouldn't block deletion
-    }
+    // Delegate to extracted storage service (Fix #1)
+    return recordingStorageService.deleteS3Prefix(bucket, prefix);
   }
 
   /**
@@ -1002,14 +716,15 @@ class RecordingService {
     }
 
     // If using S3, generate a new signed URL
-    if (recording.storage_provider === 's3' && this.s3Client && recording.storage_bucket && recording.storage_key) {
+    const s3Client = getS3Client();
+    if (recording.storage_provider === 's3' && s3Client && recording.storage_bucket && recording.storage_key) {
       const command = new GetObjectCommand({
         Bucket: recording.storage_bucket,
         Key: recording.storage_key,
         ResponseContentDisposition: `attachment; filename="recording-${recordingId}.${recording.file_format || 'webm'}"`,
       });
 
-      const url = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // 1 hour
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
       return url;
     }
 
@@ -1049,7 +764,8 @@ class RecordingService {
       .where('is_ready', true)
       .orderByRaw(`CASE quality ${qualityOrder.map((q, i) => `WHEN '${q}' THEN ${i}`).join(' ')} ELSE 999 END`);
 
-    if (variants.length > 0 && this.s3Client && recording.storage_bucket) {
+    const s3Client = getS3Client();
+    if (variants.length > 0 && s3Client && recording.storage_bucket) {
       const variant = variants[0];
 
       // Fetch org slug for path construction
@@ -1073,7 +789,7 @@ class RecordingService {
       });
       
       try {
-        const url = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 * 24 });
+        const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 * 24 });
         logger.info(`Generated playback URL for transcoded variant ${recordingId}@${variant.quality}`);
         return url;
       } catch (error) {
@@ -1084,14 +800,14 @@ class RecordingService {
 
     // Fall back to original file if no transcoded variants available
     // If using S3/R2, generate a fresh signed URL for streaming
-    if (recording.storage_provider === 's3' && this.s3Client && recording.storage_bucket && recording.storage_key) {
+    if (recording.storage_provider === 's3' && s3Client && recording.storage_bucket && recording.storage_key) {
       const command = new GetObjectCommand({
         Bucket: recording.storage_bucket,
         Key: recording.storage_key,
       });
 
       // Longer expiration for playback (24 hours)
-      const url = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 * 24 });
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 * 24 });
       logger.info(`Generated playback URL for original recording ${recordingId}`);
       return url;
     }
@@ -1177,15 +893,5 @@ class RecordingService {
   }
 }
 
-// S3 client configuration type
-interface S3ClientConfig {
-  region: string;
-  credentials: {
-    accessKeyId: string;
-    secretAccessKey: string;
-  };
-  endpoint?: string;
-  forcePathStyle?: boolean;
-}
-
-export default new RecordingService();
+export const recordingService = new RecordingService();
+export default recordingService;

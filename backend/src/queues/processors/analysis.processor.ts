@@ -249,7 +249,7 @@ export class AnalysisProcessor extends BaseProcessor<AnalysisJobData, AnalysisJo
           type: 'analysis_complete',
           title: 'Recording Analysis Complete',
           message: `A recording for "${task.title}" has been analyzed and ${verdictText} with a score of ${result.overallScore.toFixed(0)}%.`,
-          actionUrl: `/reviews/${recordingId}`,
+          actionUrl: `/tasks/${taskId}/review`,
           metadata: {
             recordingId,
             taskId,

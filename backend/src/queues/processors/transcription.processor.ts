@@ -6,11 +6,13 @@ import { logger } from '../../utils/logger';
 import { db } from '../../config/database';
 // ffmpegService is available for future audio extraction optimization
 // import ffmpegService from '../../services/ffmpeg.service';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+// Centralized S3 client (Fix #13 - consolidated S3 initialization)
+import { getS3Client } from '../../config/s3';
 
 /**
  * Transcription Processor
@@ -24,31 +26,11 @@ import os from 'os';
  * This processor handles the Node.js side: file management, DB updates, and job orchestration.
  */
 export class TranscriptionProcessor extends BaseProcessor<TranscriptionJobData, TranscriptionJobResult> {
-  private s3Client: S3Client | null = null;
   private tempDir: string;
 
   constructor() {
     super(QUEUE_CONFIGS.transcription.name, WORKER_CONCURRENCY.transcription);
     this.tempDir = path.join(os.tmpdir(), 'cogveri-transcription');
-
-    // Initialize S3 client if configured
-    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-      const s3Config: any = {
-        region: process.env.AWS_REGION || 'auto',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
-      };
-
-      if (process.env.AWS_ENDPOINT_URL) {
-        s3Config.endpoint = process.env.AWS_ENDPOINT_URL;
-        s3Config.forcePathStyle = true;
-      }
-
-      this.s3Client = new S3Client(s3Config);
-    }
-
     this.ensureTempDir();
   }
 
@@ -175,7 +157,8 @@ export class TranscriptionProcessor extends BaseProcessor<TranscriptionJobData, 
     }
 
     // If it's an S3 path, generate a signed URL
-    if (this.s3Client && process.env.AWS_S3_BUCKET) {
+    const s3Client = getS3Client();
+    if (s3Client && process.env.AWS_S3_BUCKET) {
       const key = fileUrl.startsWith('s3://') ? fileUrl.slice(5) : fileUrl;
       const [bucket, ...keyParts] = key.split('/');
       const actualKey = keyParts.join('/');
@@ -185,7 +168,7 @@ export class TranscriptionProcessor extends BaseProcessor<TranscriptionJobData, 
         Key: actualKey || key,
       });
 
-      return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+      return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
     }
 
     // Return as-is for local development

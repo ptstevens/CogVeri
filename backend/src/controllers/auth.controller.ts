@@ -163,11 +163,43 @@ export const refresh = async (req: Request, res: Response, next: NextFunction): 
         throw new UnauthorizedError('Your account has been deactivated');
       }
 
-      // Use user's organization_id directly (can be null for users without org)
-      const orgId = user.organization_id || null;
+      let token: string;
+      let newRefreshToken: string;
 
-      const token = await jwtService.generateAccessToken(user.id, orgId);
-      const { token: newRefreshToken } = await jwtService.generateRefreshToken(user.id);
+      // Check if this is a cross-tenant access refresh (sysadmin impersonation)
+      if (decoded.crossTenantOrgId && decoded.crossTenantRole && user.is_system_admin) {
+        // Regenerate tokens with cross-tenant access preserved
+        token = await jwtService.generateAccessToken(
+          user.id,
+          null,
+          {
+            impersonationId: 'refresh-preserved',
+            actorUserId: user.id,
+          },
+          {
+            targetOrgId: decoded.crossTenantOrgId,
+            grantRole: decoded.crossTenantRole,
+          }
+        );
+
+        const refreshResult = await jwtService.generateRefreshToken(
+          user.id,
+          undefined,
+          {
+            targetOrgId: decoded.crossTenantOrgId,
+            grantRole: decoded.crossTenantRole,
+          }
+        );
+        newRefreshToken = refreshResult.token;
+
+        logger.info(`Sysadmin ${user.email} refreshed cross-tenant access to org ${decoded.crossTenantOrgId}`);
+      } else {
+        // Normal refresh - use user's organization_id directly (can be null for users without org)
+        const orgId = user.organization_id || null;
+        token = await jwtService.generateAccessToken(user.id, orgId);
+        const refreshResult = await jwtService.generateRefreshToken(user.id);
+        newRefreshToken = refreshResult.token;
+      }
 
       // Set new refresh token as HttpOnly cookie
       setRefreshTokenCookie(res, newRefreshToken);
@@ -453,6 +485,12 @@ export const loginWithImpersonationToken = async (
       throw new NotFoundError('Target organization not found');
     }
 
+    // Define cross-tenant access context
+    const crossTenantAccess = {
+      targetOrgId: tokenRecord.organization_id,
+      grantRole: 'owner' as const,
+    };
+
     // 4. Generate JWT with cross-tenant access (sysadmin keeps their own identity)
     // This allows the sysadmin to access the target org without appearing in user lists
     const accessToken = await jwtService.generateAccessToken(
@@ -462,19 +500,23 @@ export const loginWithImpersonationToken = async (
         impersonationId: tokenRecord.id,
         actorUserId: systemAdmin.id,
       },
-      {
-        // Cross-tenant access: grant owner-level access to target org
-        targetOrgId: tokenRecord.organization_id,
-        grantRole: 'owner',
-      }
+      crossTenantAccess
     );
 
-    const { token: refreshToken } = await jwtService.generateRefreshToken(systemAdmin.id);
+    // Generate refresh token WITH cross-tenant context so refresh preserves impersonation
+    const { token: refreshToken } = await jwtService.generateRefreshToken(
+      systemAdmin.id,
+      undefined,
+      crossTenantAccess
+    );
 
-    // 5. Cleanup used token to prevent replay
+    // 5. Set refresh token as HttpOnly cookie (CRITICAL for page reload persistence)
+    setRefreshTokenCookie(res, refreshToken);
+
+    // 6. Cleanup used token to prevent replay
     await db('admin_impersonation_tokens').where('id', tokenRecord.id).del();
 
-    // 6. Log the successful cross-tenant access
+    // 7. Log the successful cross-tenant access
     await db('organization_audit_logs').insert({
       organization_id: tokenRecord.organization_id,
       actor_id: systemAdmin.id,
@@ -493,13 +535,12 @@ export const loginWithImpersonationToken = async (
       `Sysadmin ${systemAdmin.email} accessed organization "${targetOrg.name}" (${tokenRecord.organization_id}) via cross-tenant access`
     );
 
-    // 7. Return auth response with sysadmin info (not target org owner)
+    // 8. Return auth response with sysadmin info (not target org owner)
     const { password: _, ...userWithoutPassword } = systemAdmin;
 
     res.json({
       message: 'Cross-tenant access successful',
       token: accessToken,
-      refreshToken,
       user: userWithoutPassword,
       isImpersonating: true,
       targetOrganization: {

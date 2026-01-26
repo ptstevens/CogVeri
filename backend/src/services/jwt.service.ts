@@ -34,6 +34,9 @@ export interface JWTRefreshPayload {
   email: string;
   type: 'refresh';
   jti: string; // Unique token ID to prevent hash collisions
+  // Cross-tenant access context (for sysadmin impersonation)
+  crossTenantOrgId?: string;
+  crossTenantRole?: 'owner' | 'admin';
 }
 
 export interface ImpersonationTokenPayload {
@@ -211,7 +214,8 @@ export class JWTService {
    */
   async generateRefreshToken(
     userId: string,
-    metadata?: { deviceFingerprint?: string; ipAddress?: string; userAgent?: string }
+    metadata?: { deviceFingerprint?: string; ipAddress?: string; userAgent?: string },
+    crossTenantAccess?: { targetOrgId: string; grantRole: 'owner' | 'admin' }
   ): Promise<{ token: string; familyId: string }> {
     try {
       const payload: JWTRefreshPayload = {
@@ -219,6 +223,11 @@ export class JWTService {
         email: '',
         type: 'refresh',
         jti: randomUUID(), // Unique token ID to prevent hash collisions
+        // Include cross-tenant context if provided (for sysadmin impersonation)
+        ...(crossTenantAccess && {
+          crossTenantOrgId: crossTenantAccess.targetOrgId,
+          crossTenantRole: crossTenantAccess.grantRole,
+        }),
       };
 
       const token = jwt.sign(payload, this.refreshTokenSecret, {

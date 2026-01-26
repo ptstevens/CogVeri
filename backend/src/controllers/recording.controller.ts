@@ -307,3 +307,55 @@ export const getProcessingStatus = async (req: AuthenticatedRequest, res: Respon
     next(error);
   }
 };
+
+
+// Refresh recording duration by probing the video file
+export const refreshDuration = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const organizationId = (req as any).user?.org_id;
+
+    if (!organizationId) {
+      throw new BadRequestError('Organization ID is required');
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      throw new BadRequestError('Recording ID is required');
+    }
+
+    // Verify user has access to the recording
+    const recording = await recordingService.getRecordingById(id, organizationId);
+    if (!recording) {
+      throw new BadRequestError('Recording not found');
+    }
+
+    // Allow access if user is part of the organization
+    // (same access rules as getRecording - owner, admin, assignee, or reviewer)
+    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'OWNER' && req.user!.org_role !== 'ADMIN') {
+      const { db } = await import('../config/database');
+      const task = await db('tasks').where('id', recording.task_id).first();
+
+      const hasTaskAccess = task && (
+        task.assigned_to === req.user!.id ||
+        task.reviewed_by === req.user!.id
+      );
+
+      if (!hasTaskAccess) {
+        throw new BadRequestError('Unauthorized to access this recording');
+      }
+    }
+
+    const duration = await recordingService.refreshDuration(id, organizationId);
+
+    res.json({
+      success: true,
+      data: {
+        recordingId: id,
+        duration_seconds: duration,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

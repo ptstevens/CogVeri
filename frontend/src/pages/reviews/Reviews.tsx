@@ -21,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { StatusBadge, PriorityBadge, ExpandableRichText } from '../../components/ui';
 import toast from 'react-hot-toast';
+import { useRecordingDurations, getDisplayDuration } from '../../hooks/useRecordingDurations';
 
 interface Task {
   id: string;
@@ -43,7 +44,7 @@ interface Recording {
   id: string;
   task_id: string;
   status: string;
-  duration_seconds: number;
+  duration_seconds: number | null;
   created_at: string;
 }
 
@@ -112,6 +113,15 @@ const Reviews: React.FC = () => {
       toast.error('Failed to update task');
     },
   });
+
+  // Flatten all recordings for duration refresh hook
+  const allRecordings = React.useMemo((): Recording[] => {
+    if (!recordings) return [];
+    return Object.values(recordings).flat() as Recording[];
+  }, [recordings]);
+
+  // Lazy-load actual durations for recordings with 0/null duration
+  const refreshedDurations = useRecordingDurations(allRecordings);
 
   const handleArchiveToggle = (taskId: string, currentArchived: boolean) => {
     archiveMutation.mutate({ taskId, archived: !currentArchived });
@@ -429,7 +439,7 @@ const Reviews: React.FC = () => {
                           <div className="flex items-center">
                             <PlayCircle className="h-4 w-4 mr-1" aria-hidden="true" />
                             <span className="sr-only">Recording duration: </span>
-                            Recording: {formatDuration(latestRecording.duration_seconds)}
+                            Recording: {formatDuration(getDisplayDuration(latestRecording, refreshedDurations))}
                           </div>
                         )}
                       </div>

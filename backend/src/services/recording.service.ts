@@ -820,6 +820,70 @@ class RecordingService {
     throw new BadRequestError('Recording file not available');
   }
 
+
+  /**
+   * Probes the video file to get the actual duration and updates the database.
+   * Used for lazy-updating durations that weren't captured during upload/transcode.
+   * @param recordingId - The UUID of the recording
+   * @param organizationId - Optional organization ID for filtering
+   * @returns The actual duration in seconds, or null if it couldn't be determined
+   */
+  async refreshDuration(recordingId: string, organizationId?: string): Promise<number | null> {
+    const recording = await this.getRecordingById(recordingId, organizationId);
+
+    if (!recording) {
+      throw new NotFoundError('Recording not found');
+    }
+
+    // If we already have a valid duration, return it without probing
+    if (recording.duration_seconds && recording.duration_seconds > 0) {
+      return recording.duration_seconds;
+    }
+
+    // Only probe completed recordings
+    if (recording.status !== 'completed') {
+      logger.info(`Recording ${recordingId} is not completed, skipping duration probe`);
+      return null;
+    }
+
+    try {
+      // Get the playback URL for the recording
+      const url = await this.getRecordingPlaybackUrl(recordingId);
+
+      // Use ffprobe to get the duration
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      const { stdout } = await execAsync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+        { timeout: 30000 }
+      );
+
+      const duration = parseFloat(stdout.trim());
+      if (isNaN(duration) || duration <= 0) {
+        logger.warn(`Could not determine duration for recording ${recordingId}`);
+        return null;
+      }
+
+      const roundedDuration = Math.round(duration);
+
+      // Update the database with the actual duration
+      await db('recordings')
+        .where('id', recordingId)
+        .update({
+          duration_seconds: roundedDuration,
+          updated_at: new Date(),
+        });
+
+      logger.info(`Updated duration for recording ${recordingId}: ${roundedDuration}s`);
+      return roundedDuration;
+    } catch (error) {
+      logger.error(`Error probing duration for recording ${recordingId}:`, error);
+      return null;
+    }
+  }
+
   /**
    * Updates the status of a recording and tracks processing timestamps.
    * Automatically sets uploaded_at, processed_at, or processing_error as appropriate.

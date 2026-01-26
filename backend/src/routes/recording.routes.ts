@@ -13,6 +13,7 @@ import {
   getRecordings,
   getRecordingPlaybackUrl,
   getProcessingStatus,
+  refreshDuration,
   // uploadMiddleware,
 } from '../controllers/recording.controller';
 import {
@@ -46,6 +47,7 @@ router.get('/:id', getRecording); // Get single recording
 // router.get('/:id/download-url', getRecordingDownloadUrl); // Get download URL - NOT YET IMPLEMENTED
 router.get('/:id/playback-url', getRecordingPlaybackUrl); // Get playback URL for video player
 router.get('/:id/processing-status', getProcessingStatus); // Get processing status (transcoding, transcription)
+router.post('/:id/refresh-duration', refreshDuration); // Probe video and update duration in database
 // router.put('/:id/status', updateRecordingStatus); // Update recording status (admin only) - NOT YET IMPLEMENTED
 
 // Multipart upload routes (for chunked recording upload during recording)

@@ -24,9 +24,9 @@ router.get('/:organizationId/members', enhancedAuthenticate, async (req: Enhance
     // Set RLS context to target organization for this operation
     await db.raw('SELECT set_current_org(?::uuid)', [organizationId]);
 
-    // Check if user is member of organization
+    // Check if user is member of organization (or system admin)
     const isMember = await organizationMemberService.getMember(organizationId, userId);
-    if (!isMember) {
+    if (!isMember && !req.user!.is_system_admin) {
       res.status(403).json({
         error: 'You are not a member of this organization',
       });
@@ -77,9 +77,9 @@ router.get(
       // Set RLS context to target organization for this operation
       await db.raw('SELECT set_current_org(?::uuid)', [organizationId]);
 
-      // Check if user is member of organization
+      // Check if user is member of organization (or system admin)
       const isMember = await organizationMemberService.getMember(organizationId, userId);
-      if (!isMember) {
+      if (!isMember && !req.user!.is_system_admin) {
         res.status(403).json({
           error: 'You are not a member of this organization',
         });
@@ -600,9 +600,10 @@ router.post(
       // Set RLS context to target organization for this operation
       await db.raw('SELECT set_current_org(?::uuid)', [organizationId]);
 
-      // Verify current user is an owner (done in service, but check here for better error message)
+      // Verify current user is an owner (or system admin)
       const currentUser = await organizationMemberService.getMember(organizationId, currentUserId);
-      if (!currentUser || currentUser.orgRole !== 'owner') {
+      const isOwnerOrSysadmin = req.user!.is_system_admin || (currentUser && currentUser.orgRole === 'owner');
+      if (!isOwnerOrSysadmin) {
         res.status(403).json({
           error: 'Only organization owners can transfer ownership',
         });

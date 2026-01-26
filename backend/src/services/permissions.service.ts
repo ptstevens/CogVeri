@@ -359,6 +359,17 @@ export class PermissionsService {
    */
   async getUserRole(userId: string, organizationId: string): Promise<OrganizationRole | null> {
     try {
+      // Check if user is a system admin - they get OWNER role for cross-tenant access
+      const user = await db('users')
+        .where('id', userId)
+        .select('is_system_admin', 'org_role', 'organization_id')
+        .first();
+
+      if (user?.is_system_admin) {
+        // System admins have owner-level access to any organization during cross-tenant access
+        return 'OWNER' as OrganizationRole;
+      }
+
       // First check organization_members table (new multi-org model)
       const membership = await db('organization_members')
         .where('user_id', userId)
@@ -372,16 +383,11 @@ export class PermissionsService {
       }
 
       // Fallback to legacy users table (transition period)
-      const user = await db('users')
-        .where('id', userId)
-        .where('organization_id', organizationId)
-        .select('org_role')
-        .first();
+      if (user?.organization_id === organizationId && user?.org_role) {
+        return user.org_role.toUpperCase() as OrganizationRole;
+      }
 
-      if (!user || !user.org_role) return null;
-
-      // Ensure uppercase return
-      return user.org_role.toUpperCase() as OrganizationRole;
+      return null;
     } catch (error) {
       logger.error('Error getting user role:', error);
       return null;

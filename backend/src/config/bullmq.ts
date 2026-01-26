@@ -150,12 +150,14 @@ export const QUEUE_CONFIGS = {
 } as const;
 
 // Worker concurrency settings
+// Note: Analysis and transcode increased from 1 to allow better parallelism for batch uploads
+// Gemini rate limiting is handled by the GeminiRateLimiter service to prevent API quota issues
 export const WORKER_CONCURRENCY = {
   email: parseInt(process.env.QUEUE_EMAIL_CONCURRENCY || '5', 10),
   transcription: parseInt(process.env.QUEUE_TRANSCRIPTION_CONCURRENCY || '2', 10),
   thumbnail: parseInt(process.env.QUEUE_THUMBNAIL_CONCURRENCY || '3', 10),
-  transcode: parseInt(process.env.QUEUE_TRANSCODE_CONCURRENCY || '1', 10),
-  analysis: parseInt(process.env.QUEUE_ANALYSIS_CONCURRENCY || '1', 10), // Rate-limited AI calls
+  transcode: parseInt(process.env.QUEUE_TRANSCODE_CONCURRENCY || '2', 10), // Increased for parallel transcoding
+  analysis: parseInt(process.env.QUEUE_ANALYSIS_CONCURRENCY || '2', 10), // Increased, rate limiting via GeminiRateLimiter
   frameExtraction: parseInt(process.env.QUEUE_FRAME_EXTRACTION_CONCURRENCY || '2', 10),
   rubricTemplateGeneration: parseInt(process.env.QUEUE_RUBRIC_TEMPLATE_CONCURRENCY || '1', 10), // Long-running AI jobs
 };

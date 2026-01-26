@@ -28,10 +28,10 @@ import {
   GEMINI_MODELS,
 } from '../config/gemini';
 import {
-  RUBRIC_GENERATION_SYSTEM_PROMPT,
   buildRubricGenerationPrompt,
   buildBatchFrameDescriptionPrompt,
 } from './analysis/prompts/rubric-generation.prompts';
+import { getRubricGenerationPrompt } from './analysis/prompts/prompt-resolver';
 import { logger } from '../utils/logger';
 import { BadRequestError, NotFoundError, InternalServerError } from '../utils/AppError';
 import { RubricStep, SpeechCriteria, VisualCriteria, EvidenceType } from '../queues/types/job-types';
@@ -1361,8 +1361,11 @@ class RubricGenerationService {
       customContext: params.customContext,
     });
 
+    // Fetch system prompt (from DB with fallback to hardcoded)
+    const systemPrompt = await getRubricGenerationPrompt();
+
     const result = await this.textModel.generateContent([
-      { text: RUBRIC_GENERATION_SYSTEM_PROMPT },
+      { text: systemPrompt },
       { text: prompt },
     ]);
 

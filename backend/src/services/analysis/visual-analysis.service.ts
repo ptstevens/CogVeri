@@ -6,10 +6,12 @@
 
 import { getVisionAnalysisModel, estimateCost, TokenUsage } from '../../config/gemini';
 import { RubricStep, VisualEvidence, StepScoreValue, ExtractedFrame } from '../../queues/types/job-types';
-import { VISUAL_ANALYSIS_SYSTEM_PROMPT, buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
+import { buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
+import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
 import { getS3Client, isS3Available, getS3Bucket } from '../../config/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { geminiRateLimiter } from './gemini-rate-limiter';
 
 // Alias for backwards compatibility
 const isS3Configured = isS3Available;
@@ -57,6 +59,7 @@ class VisualAnalysisService {
       // Batch frames for efficient API calls
       const batches = this.createBatches(frames, this.BATCH_SIZE);
       const allFrameAnalysis: any[] = [];
+      const allStepMatches: any[] = [];
       const totalTokens: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
       for (let i = 0; i < batches.length; i++) {
@@ -64,8 +67,9 @@ class VisualAnalysisService {
         logger.debug(`Analyzing frame batch ${i + 1}/${batches.length}`);
 
         try {
-          const { analysis, tokens } = await this.analyzeBatch(batch ?? [], stepsWithVisual);
+          const { analysis, stepMatches, tokens } = await this.analyzeBatch(batch ?? [], stepsWithVisual);
           allFrameAnalysis.push(...analysis);
+          allStepMatches.push(...stepMatches);
           totalTokens.inputTokens += tokens.inputTokens;
           totalTokens.outputTokens += tokens.outputTokens;
           totalTokens.totalTokens += tokens.totalTokens;
@@ -79,8 +83,8 @@ class VisualAnalysisService {
         }
       }
 
-      // Aggregate results per step
-      const results = this.aggregateResults(allFrameAnalysis, stepsWithVisual);
+      // Aggregate results per step (include stepMatches for observations)
+      const results = this.aggregateResults(allFrameAnalysis, stepsWithVisual, allStepMatches);
 
       logger.info(
         `Visual analysis complete: ${frames.length} frames, ${stepsWithVisual.length} steps, ` +
@@ -116,7 +120,7 @@ class VisualAnalysisService {
   private async analyzeBatch(
     frames: ExtractedFrame[],
     steps: RubricStep[]
-  ): Promise<{ analysis: any[]; tokens: TokenUsage }> {
+  ): Promise<{ analysis: any[]; stepMatches: any[]; tokens: TokenUsage }> {
     const prompt = buildVisualAnalysisPrompt(
       frames.map(f => ({ index: f.index, timestampSeconds: f.timestampSeconds })),
       steps
@@ -145,12 +149,19 @@ class VisualAnalysisService {
     if (validImageParts.length === 0) {
       return {
         analysis: [],
+        stepMatches: [],
         tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       };
     }
 
+    // Wait for rate limit capacity (estimate ~15K tokens per batch with images)
+    await geminiRateLimiter.waitForCapacity(15000);
+
+    // Fetch system prompt (from DB with fallback to hardcoded)
+    const systemPrompt = await getVisualAnalysisPrompt();
+
     const result = await this.model.generateContent([
-      { text: VISUAL_ANALYSIS_SYSTEM_PROMPT },
+      { text: systemPrompt },
       ...validImageParts,
       { text: prompt },
     ]);
@@ -159,15 +170,21 @@ class VisualAnalysisService {
     const responseText = response.text();
     const usageMetadata = response.usageMetadata;
 
+    const tokens = {
+      inputTokens: usageMetadata?.promptTokenCount || 0,
+      outputTokens: usageMetadata?.candidatesTokenCount || 0,
+      totalTokens: usageMetadata?.totalTokenCount || 0,
+    };
+
+    // Record actual usage for rate limiting
+    geminiRateLimiter.recordUsage(tokens.totalTokens);
+
     const parsed = this.parseVisualResponse(responseText);
 
     return {
       analysis: parsed.frameAnalysis || [],
-      tokens: {
-        inputTokens: usageMetadata?.promptTokenCount || 0,
-        outputTokens: usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: usageMetadata?.totalTokenCount || 0,
-      },
+      stepMatches: parsed.stepMatches || [],
+      tokens,
     };
   }
 
@@ -206,11 +223,19 @@ class VisualAnalysisService {
    */
   private parseVisualResponse(responseText: string): any {
     try {
-      let jsonStr = responseText;
+      let jsonStr = responseText.trim();
+
+      // Try to match complete code blocks first
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonStr = jsonMatch[1].trim();
+      } else {
+        // Fallback: strip opening/closing code fences separately
+        // Handles cases where AI returns partial code blocks
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '');
+        jsonStr = jsonStr.replace(/\n?```\s*$/, '');
       }
+
       return JSON.parse(jsonStr);
     } catch (error) {
       logger.error('Failed to parse visual response:', error);
@@ -223,7 +248,8 @@ class VisualAnalysisService {
    */
   private aggregateResults(
     frameAnalysis: any[],
-    steps: RubricStep[]
+    steps: RubricStep[],
+    stepMatches: any[] = []
   ): VisualAnalysisResult[] {
     return steps.map(step => {
       const visual = step.visualCriteria;
@@ -292,6 +318,10 @@ class VisualAnalysisService {
       else if (ratio >= 0.4) score = 'PARTIAL';
       else score = 'NO';
 
+      // Find observation from stepMatches (Gemini's description of what was witnessed)
+      const matchedStep = stepMatches.find(m => m.stepId === step.id);
+      const observation = matchedStep?.observation || undefined;
+
       return {
         stepId: step.id,
         score,
@@ -303,8 +333,9 @@ class VisualAnalysisService {
           actionsMissing,
           visualScore: score as 'YES' | 'PARTIAL' | 'NO',
           visualConfidence: ratio,
+          observation,
         },
-        reasoning: `Found ${found}/${totalRequired} expected elements/actions`,
+        reasoning: observation || `Found ${found}/${totalRequired} expected elements/actions`,
       };
     });
   }

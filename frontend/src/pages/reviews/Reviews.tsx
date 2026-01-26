@@ -128,9 +128,13 @@ const Reviews: React.FC = () => {
     navigate(`/tasks/${taskId}/review`);
   };
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number | null | undefined) => {
+    // Handle null, undefined, or 0 duration (might still be processing)
+    if (!seconds || seconds <= 0) {
+      return 'Processing...';
+    }
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

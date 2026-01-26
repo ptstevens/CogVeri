@@ -697,4 +697,5 @@ class TaskService {
   }
 }
 
-export default new TaskService();
+export const taskService = new TaskService();
+export default taskService;

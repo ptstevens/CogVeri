@@ -37,6 +37,7 @@ import adminSettingsRoutes from './admin-settings.routes';
 import adminFeatureGrantsRoutes from './admin-feature-grants.routes';
 import adminTrialsRoutes from './admin-trials.routes';
 import adminVideoUploadRoutes from './admin-video-upload.routes';
+import adminAiPromptsRoutes from './admin-ai-prompts.routes';
 import domainVerificationRoutes from './domain-verification.routes';
 import subscriberEmailRoutes from './subscriber-email.routes';
 import enterpriseRoutes from './enterprise.routes';
@@ -104,6 +105,7 @@ router.use('/admin/settings', adminSettingsRoutes);  // System settings (trial d
 router.use('/admin', adminFeatureGrantsRoutes);  // Feature grants for organizations
 router.use('/admin', adminTrialsRoutes);  // Trial management for organizations
 router.use('/admin/video-upload', adminVideoUploadRoutes);  // Sysadmin video upload to tasks
+router.use('/admin/ai-prompts', adminAiPromptsRoutes);  // AI prompt management (system admin only)
 router.use('/admin/enterprise', enterpriseRoutes);  // Enterprise plan management (system admin only)
 router.use('/domain-verification', domainVerificationRoutes);
 router.use('/subscriber-email', subscriberEmailRoutes);

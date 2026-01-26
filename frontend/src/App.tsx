@@ -43,6 +43,8 @@ const AdminPricing = lazy(() => import('./pages/admin/AdminPricing'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminSystemAdmins = lazy(() => import('./pages/admin/AdminSystemAdmins'));
 const AdminVideoUpload = lazy(() => import('./pages/admin/AdminVideoUpload'));
+const AdminAIPrompts = lazy(() => import('./pages/admin/AdminAIPrompts'));
+const AdminAIPromptEditor = lazy(() => import('./pages/admin/AdminAIPromptEditor'));
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const RubricBuilderPage = lazy(() => import('./pages/rubric/RubricBuilderPage'));
 const AnalysisResultsPage = lazy(() => import('./pages/analysis/AnalysisResultsPage'));
@@ -130,6 +132,8 @@ function App() {
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="system-admins" element={<AdminSystemAdmins />} />
                 <Route path="video-upload" element={<AdminVideoUpload />} />
+                <Route path="ai-prompts" element={<AdminAIPrompts />} />
+                <Route path="ai-prompts/:promptKey" element={<AdminAIPromptEditor />} />
               </Route>
             </Route>
 

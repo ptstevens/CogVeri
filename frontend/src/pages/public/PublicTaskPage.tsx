@@ -487,7 +487,16 @@ const PublicTaskPage: React.FC = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              claimMutation.mutate(claimData);
+              // Trim and validate names before submitting
+              const trimmedData = {
+                ...claimData,
+                firstName: claimData.firstName.trim(),
+                lastName: claimData.lastName.trim(),
+              };
+              if (!trimmedData.firstName || !trimmedData.lastName) {
+                return; // HTML5 validation will show error
+              }
+              claimMutation.mutate(trimmedData);
             }}
             className="space-y-4"
           >
@@ -498,6 +507,8 @@ const PublicTaskPage: React.FC = () => {
               <input
                 type="text"
                 required
+                pattern=".*\S+.*"
+                title="First name cannot be empty or contain only spaces"
                 value={claimData.firstName}
                 onChange={(e) => setClaimData({ ...claimData, firstName: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -512,6 +523,8 @@ const PublicTaskPage: React.FC = () => {
               <input
                 type="text"
                 required
+                pattern=".*\S+.*"
+                title="Last name cannot be empty or contain only spaces"
                 value={claimData.lastName}
                 onChange={(e) => setClaimData({ ...claimData, lastName: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"

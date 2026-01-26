@@ -195,6 +195,7 @@ class TaskService {
       created_by?: string;
       type?: string;
       priority?: string;
+      scope?: 'mine' | 'all';
     },
     pagination?: {
       limit?: number;
@@ -246,9 +247,10 @@ class TaskService {
       }
 
       // Visibility logic:
-      // - OWNER/ADMIN: Can see everything in the Org
-      // - Others: Can only see tasks they are assigned to, created, or reviewing
-      if (!this.isAdmin(userRole)) {
+      // - scope=all + OWNER/ADMIN: Can see everything in the Org
+      // - scope=mine (default) or non-admin: Can only see tasks they are assigned to, created, or reviewing
+      const shouldFilterToMine = filters?.scope !== 'all' || !this.isAdmin(userRole);
+      if (shouldFilterToMine) {
         query = query.where((builder) => {
           builder
             .where('tasks.assigned_to', userId)
@@ -562,7 +564,12 @@ class TaskService {
    * @returns An object with counts for total, pending, in_progress, submitted, completed, rejected, and overdue tasks
    * @throws {BadRequestError} If organization ID cannot be determined
    */
-  async getTaskStatistics(userId: string, userRole: string, organizationId?: string): Promise<Record<string, number>> {
+  async getTaskStatistics(
+    userId: string,
+    userRole: string,
+    organizationId?: string,
+    scope?: 'mine' | 'all'
+  ): Promise<Record<string, number>> {
     const orgId = this.getOrganizationId(organizationId);
 
     if (!orgId) {
@@ -572,8 +579,9 @@ class TaskService {
     try {
       let query = db('tasks').where('organization_id', orgId);
 
-      // Visibility logic
-      if (!this.isAdmin(userRole)) {
+      // Visibility logic: scope=all + admin sees everything, otherwise filter to user's tasks
+      const shouldFilterToMine = scope !== 'all' || !this.isAdmin(userRole);
+      if (shouldFilterToMine) {
         query = query.where((builder) => {
           builder
             .where('assigned_to', userId)

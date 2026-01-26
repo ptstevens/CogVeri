@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ClipboardCheck,
@@ -19,7 +19,7 @@ import {
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { StatusBadge, PriorityBadge, ExpandableRichText } from '../../components/ui';
+import { StatusBadge, PriorityBadge, ExpandableRichText, ScopeToggle, ScopeValue } from '../../components/ui';
 import toast from 'react-hot-toast';
 import { useRecordingDurations, getDisplayDuration } from '../../hooks/useRecordingDurations';
 
@@ -52,24 +52,46 @@ const Reviews: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [showArchived, setShowArchived] = useState<boolean>(false);
 
-  // Fetch all tasks where current user is the reviewer (no status filter for accurate counts)
+  // Scope filter: 'mine' (default) shows tasks where user is reviewer, 'all' shows all (admin only)
+  const urlScope = searchParams.get('scope') as ScopeValue | null;
+  const [scope, setScope] = useState<ScopeValue>(urlScope === 'all' ? 'all' : 'mine');
+
+  // Check if user is admin (OWNER or ADMIN role)
+  const isAdmin = user?.org_role === 'OWNER' || user?.org_role === 'ADMIN';
+
+  // Handle scope change
+  const handleScopeChange = useCallback((newScope: ScopeValue) => {
+    setScope(newScope);
+    if (newScope === 'mine') {
+      searchParams.delete('scope');
+    } else {
+      searchParams.set('scope', newScope);
+    }
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Fetch tasks for review: 'mine' scope shows only tasks where user is reviewer, 'all' shows all reviewable tasks
   const {
     data: tasks,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['review-tasks'],
+    queryKey: ['review-tasks', scope],
     queryFn: async () => {
-      const response = await api.get('/tasks', {
-        params: {
-          reviewed_by: user?.id,
-        },
-      });
+      const params: Record<string, string> = {
+        scope: scope,
+      };
+      // When scope is 'mine', also filter by reviewed_by to ensure we only see tasks assigned to us for review
+      if (scope === 'mine') {
+        params.reviewed_by = user?.id || '';
+      }
+      const response = await api.get('/tasks', { params });
       return response.data.data || [];
     },
     enabled: !!user?.id,
@@ -148,9 +170,11 @@ const Reviews: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Base filter: reviewer + archive status (for counts)
+  // Base filter: reviewer (when scope=mine) + archive status (for counts)
   const baseTasks = (tasks?.filter((task: Task) => {
-    const matchesReviewer = task.reviewed_by === user?.id;
+    // When scope is 'mine', ensure we only show tasks where user is reviewer
+    // When scope is 'all', show all tasks (already filtered by backend based on role)
+    const matchesReviewer = scope === 'all' || task.reviewed_by === user?.id;
     const matchesArchive = showArchived ? (task as any).archived === true : (task as any).archived !== true;
     return matchesReviewer && matchesArchive;
   }) || []) as Task[];
@@ -343,6 +367,14 @@ const Reviews: React.FC = () => {
             <option value="medium">Medium Priority</option>
             <option value="low">Low Priority</option>
           </select>
+
+          <ScopeToggle
+            scope={scope}
+            onScopeChange={handleScopeChange}
+            isAdmin={isAdmin}
+            mineLabel="My Reviews"
+            allLabel="All Reviews"
+          />
 
           <div className="flex rounded-md border border-gray-300 overflow-hidden" role="group" aria-label="Toggle active or archived view">
             <button

@@ -25,7 +25,7 @@ import { taskService, Task, TaskStatistics, TasksByStatus } from '../../services
 import { useAuth } from '../../contexts/AuthContext';
 import CreateTaskModal from '../../components/tasks/CreateTaskModal';
 import EditTaskModal from '../../components/tasks/EditTaskModal';
-import { StatusBadge, PriorityBadge, ExpandableRichText } from '../../components/ui';
+import { StatusBadge, PriorityBadge, ExpandableRichText, ScopeToggle, ScopeValue } from '../../components/ui';
 import toast from 'react-hot-toast';
 
 type ViewMode = 'list' | 'kanban';
@@ -672,6 +672,15 @@ const Tasks: React.FC = () => {
   );
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Scope filter: 'mine' (default) or 'all' (admin only)
+  const urlScope = searchParams.get('scope') as ScopeValue | null;
+  const [scope, setScope] = useState<ScopeValue>(
+    urlScope === 'all' ? 'all' : 'mine'
+  );
+
+  // Check if user is admin (OWNER or ADMIN role)
+  const isAdmin = user?.org_role === 'OWNER' || user?.org_role === 'ADMIN';
+
   // Update URL when filter changes (for shareable links)
   const handleFilterChange = useCallback((newFilter: FilterStatus) => {
     setFilterStatus(newFilter);
@@ -682,15 +691,28 @@ const Tasks: React.FC = () => {
     }
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  // Handle scope change (My Tasks / All Tasks)
+  const handleScopeChange = useCallback((newScope: ScopeValue) => {
+    setScope(newScope);
+    if (newScope === 'mine') {
+      searchParams.delete('scope');
+    } else {
+      searchParams.set('scope', newScope);
+    }
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
 
   // Fetch tasks based on view mode
   const { data: tasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ['tasks', filterStatus],
+    queryKey: ['tasks', filterStatus, scope],
     queryFn: () => {
-      const filters = filterStatus !== 'all' ? { status: filterStatus } : undefined;
+      const filters = filterStatus !== 'all'
+        ? { status: filterStatus, scope }
+        : { scope };
       return taskService.getTasks(filters);
     },
     staleTime: 2 * 60 * 1000, // ★ 2 minutes - tasks don't change frequently
@@ -698,16 +720,16 @@ const Tasks: React.FC = () => {
 
   // Fetch tasks by status for kanban view
   const { data: tasksByStatus, isLoading: kanbanLoading } = useQuery({
-    queryKey: ['tasks-by-status'],
-    queryFn: () => taskService.getTasksByStatus(),
+    queryKey: ['tasks-by-status', scope],
+    queryFn: () => taskService.getTasksByStatus(scope),
     enabled: viewMode === 'kanban',
     staleTime: 2 * 60 * 1000, // ★ 2 minutes
   });
 
   // Fetch task statistics
   const { data: statistics } = useQuery({
-    queryKey: ['task-statistics'],
-    queryFn: () => taskService.getTaskStatistics(),
+    queryKey: ['task-statistics', scope],
+    queryFn: () => taskService.getTaskStatistics(scope),
     staleTime: 2 * 60 * 1000, // ★ 2 minutes
   });
 
@@ -803,8 +825,8 @@ const Tasks: React.FC = () => {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex-1 flex gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex-1 flex flex-wrap gap-4">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" aria-hidden="true" />
             <label htmlFor="task-search" className="sr-only">Search tasks</label>
             <input
@@ -839,6 +861,12 @@ const Tasks: React.FC = () => {
               </select>
             </>
           )}
+
+          <ScopeToggle
+            scope={scope}
+            onScopeChange={handleScopeChange}
+            isAdmin={isAdmin}
+          />
         </div>
 
         <div className="flex gap-2" role="group" aria-label="View options and actions">

@@ -229,7 +229,11 @@ const TaskReview: React.FC = () => {
     setCurrentTime(time);
   };
 
-  const formatTime = (seconds: number) => {
+  const formatTime = (seconds: number | null | undefined) => {
+    // Handle null, undefined, or 0 duration (might still be processing)
+    if (seconds === null || seconds === undefined || seconds < 0) {
+      return '--:--';
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;

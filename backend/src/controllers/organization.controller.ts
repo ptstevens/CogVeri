@@ -61,6 +61,34 @@ class OrganizationController {
         }));
       }
 
+      // Handle sysadmin cross-tenant access: include the target org even without membership
+      // This allows sysadmins to access other orgs while maintaining their identity
+      if (req.user.is_system_admin && req.user.isImpersonating && req.user.org_id) {
+        const targetOrgAlreadyIncluded = organizations.some((org: any) => org.id === req.user!.org_id);
+        
+        if (!targetOrgAlreadyIncluded) {
+          const targetOrg = await db('organizations')
+            .where('id', req.user.org_id)
+            .where('is_active', true)
+            .first();
+          
+          if (targetOrg) {
+            // Add the target org with the granted role from the JWT
+            organizations.unshift({
+              id: targetOrg.id,
+              name: targetOrg.name,
+              slug: targetOrg.slug,
+              subscription_tier: targetOrg.subscription_tier,
+              owner_id: targetOrg.owner_id,
+              created_at: targetOrg.created_at,
+              role: req.user.org_role || 'owner', // Use the granted role from cross-tenant access
+              joined_at: null,
+              is_cross_tenant_access: true, // Flag to identify this is cross-tenant access
+            });
+          }
+        }
+      }
+
       // Format response
       const formattedOrgs = organizations.map((org: any) => ({
         id: org.id,
@@ -71,6 +99,7 @@ class OrganizationController {
         role: org.role,
         joinedAt: org.joined_at,
         created_at: org.created_at?.toISOString() || new Date().toISOString(),
+        isCrossTenantAccess: org.is_cross_tenant_access || false,
       }));
 
       res.json(formattedOrgs);

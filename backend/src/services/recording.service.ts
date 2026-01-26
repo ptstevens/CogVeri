@@ -866,7 +866,8 @@ class RecordingService {
         return null;
       }
 
-      const roundedDuration = Math.round(duration);
+      // Use floor to match what video players typically display
+      const roundedDuration = Math.floor(duration);
 
       // Update the database with the actual duration
       await db('recordings')

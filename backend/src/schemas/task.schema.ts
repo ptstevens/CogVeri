@@ -93,9 +93,10 @@ export const getTasksQuerySchema = z.object({
   created_by: uuidSchema.optional(),
   type: taskTypeSchema.optional(),
   priority: taskPrioritySchema.optional(),
+  scope: z.enum(['mine', 'all']).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
-});
+});;
 
 // Update task progress schema
 // Update task progress schema - limited status options for progress updates

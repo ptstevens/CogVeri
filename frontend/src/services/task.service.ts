@@ -75,6 +75,7 @@ export interface TaskFilters {
   created_by?: string;
   type?: string;
   priority?: string;
+  scope?: 'mine' | 'all';
 }
 
 export interface TaskStatistics {
@@ -134,13 +135,15 @@ class TaskService {
     await api.delete(`/tasks/${id}`);
   }
 
-  async getTaskStatistics(): Promise<TaskStatistics> {
-    const response = await api.get('/tasks/statistics');
+  async getTaskStatistics(scope?: 'mine' | 'all'): Promise<TaskStatistics> {
+    const params = scope ? `?scope=${scope}` : '';
+    const response = await api.get(`/tasks/statistics${params}`);
     return response.data.data;
   }
 
-  async getTasksByStatus(): Promise<TasksByStatus> {
-    const response = await api.get('/tasks/by-status');
+  async getTasksByStatus(scope?: 'mine' | 'all'): Promise<TasksByStatus> {
+    const params = scope ? `?scope=${scope}` : '';
+    const response = await api.get(`/tasks/by-status${params}`);
     return response.data.data;
   }
 

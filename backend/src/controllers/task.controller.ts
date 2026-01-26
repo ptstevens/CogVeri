@@ -91,6 +91,7 @@ class TaskController {
         created_by: req.query.created_by as string,
         type: req.query.type as string,
         priority: req.query.priority as string,
+        scope: req.query.scope as 'mine' | 'all' | undefined,
       };
 
       const result = await taskService.getTasks(
@@ -186,8 +187,9 @@ class TaskController {
       const userId = req.user!.id;
       const userRole = req.user!.org_role;
       const organizationId = requireOrganizationId((req as any).user?.org_id);
+      const scope = req.query.scope as 'mine' | 'all' | undefined;
 
-      const stats = await taskService.getTaskStatistics(userId, userRole, organizationId);
+      const stats = await taskService.getTaskStatistics(userId, userRole, organizationId, scope);
 
       res.json({
         success: true,
@@ -240,18 +242,19 @@ class TaskController {
       const userId = req.user!.id;
       const userRole = req.user!.org_role;
       const organizationId = requireOrganizationId((req as any).user?.org_id);
+      const scope = req.query.scope as 'mine' | 'all' | undefined;
 
       const [pending, inProgress, completed, reviewed] = await Promise.all([
-        taskService.getTasks(userId, userRole, { status: 'pending' }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'pending', scope }, undefined, organizationId),
         taskService.getTasks(
           userId,
           userRole,
-          { status: 'in_progress' },
+          { status: 'in_progress', scope },
           undefined,
           organizationId
         ),
-        taskService.getTasks(userId, userRole, { status: 'completed' }, undefined, organizationId),
-        taskService.getTasks(userId, userRole, { status: 'reviewed' }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'completed', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'reviewed', scope }, undefined, organizationId),
       ]);
 
       res.json({

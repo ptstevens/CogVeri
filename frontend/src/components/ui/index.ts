@@ -37,3 +37,6 @@ export { default as OAuthPrivacyNotice } from './OAuthPrivacyNotice';
 
 export { default as VideoPlayer } from './VideoPlayer';
 export type { VideoPlayerProps, VideoPlayerHandle } from './VideoPlayer';
+
+export { default as ScopeToggle } from './ScopeToggle';
+export type { ScopeToggleProps, ScopeValue } from './ScopeToggle';

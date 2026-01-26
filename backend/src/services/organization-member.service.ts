@@ -1055,6 +1055,16 @@ class OrganizationMemberService {
    */
   async isOrganizationAdmin(organizationId: string, userId: string): Promise<boolean> {
     try {
+      // Check if user is a system admin - they have admin access to any organization
+      const user = await db('users')
+        .where('id', userId)
+        .select('is_system_admin')
+        .first();
+
+      if (user?.is_system_admin) {
+        return true;
+      }
+
       // First check organization_members table (new multi-org model)
       const membership = await db('organization_members')
         .where('user_id', userId)

@@ -446,9 +446,41 @@ export class JWTService {
   /**
    * Switch active organization without re-login
    */
-  async switchOrganization(userId: string, targetOrgId: string): Promise<string> {
+  async switchOrganization(
+    userId: string,
+    targetOrgId: string,
+    crossTenantAccess?: { isSystemAdmin: boolean; currentOrgId?: string }
+  ): Promise<string> {
     try {
-      // SECURITY: Verify user is actually a member of the target organization
+      // Check if user is a sysadmin with active cross-tenant access
+      if (crossTenantAccess?.isSystemAdmin) {
+        // Verify the target org exists
+        const targetOrg = await db('organizations')
+          .where('id', targetOrgId)
+          .where('is_active', true)
+          .first();
+
+        if (!targetOrg) {
+          throw new Error('Organization not found or inactive');
+        }
+
+        // Sysadmins with cross-tenant access can switch to any org
+        // Generate token with cross-tenant access preserved
+        return this.generateAccessToken(
+          userId,
+          null,
+          {
+            impersonationId: 'cross-tenant-switch',
+            actorUserId: userId,
+          },
+          {
+            targetOrgId,
+            grantRole: 'owner',
+          }
+        );
+      }
+
+      // SECURITY: For regular users, verify they are a member of the target organization
       // Check organization_members table first (new model)
       let membership = await db('organization_members')
         .where('user_id', userId)

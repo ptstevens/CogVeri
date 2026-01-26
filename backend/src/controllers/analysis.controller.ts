@@ -102,16 +102,33 @@ export const getAnalysisResults = async (
       }
 
       // Transform visual evidence to frontend format
+      // Backend stores: elementsDetected, actionsDetected (from VisualEvidence type)
+      // Frontend expects: detectedElements, detectedActions
       let visualEvidence = null;
       if (score.visual_evidence) {
         const visualEv = typeof score.visual_evidence === 'string'
           ? JSON.parse(score.visual_evidence)
           : score.visual_evidence;
+
+        // Map elementsDetected array to just element names for display
+        const detectedElements = (visualEv.elementsDetected || []).map((e: any) =>
+          typeof e === 'string' ? e : e.element
+        );
+        const detectedActions = (visualEv.actionsDetected || []).map((a: any) =>
+          typeof a === 'string' ? a : a.action
+        );
+        // Extract timestamps from detected elements/actions
+        const timestamps = [
+          ...(visualEv.elementsDetected || []).map((e: any) => e.frameTimestamp).filter(Boolean),
+          ...(visualEv.actionsDetected || []).map((a: any) => a.frameTimestamp).filter(Boolean),
+        ];
+
         visualEvidence = {
-          detectedElements: visualEv.detectedElements || visualEv.detected_elements || [],
-          detectedActions: visualEv.detectedActions || visualEv.detected_actions || [],
-          frameUrls: visualEv.frameUrls || visualEv.frame_urls || [],
-          timestamps: visualEv.timestamps || [],
+          detectedElements,
+          detectedActions,
+          frameUrls: visualEv.frameUrls || visualEv.representativeFrameUrl ? [visualEv.representativeFrameUrl] : [],
+          timestamps: [...new Set(timestamps)].sort((a, b) => a - b), // Unique, sorted timestamps
+          observation: visualEv.observation, // Include observation if present
         };
       }
 

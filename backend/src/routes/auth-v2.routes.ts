@@ -71,7 +71,16 @@ router.post('/switch-org', enhancedAuthenticate, async (req: EnhancedAuthRequest
       return;
     }
 
-    const newAccessToken = await jwtService.switchOrganization(req.user.id, organizationId);
+    // Pass cross-tenant context for sysadmins with active impersonation
+    const crossTenantAccess = (req.user.is_system_admin && req.user.isImpersonating)
+      ? { isSystemAdmin: true, currentOrgId: req.user.org_id }
+      : undefined;
+
+    const newAccessToken = await jwtService.switchOrganization(
+      req.user.id,
+      organizationId,
+      crossTenantAccess
+    );
 
     res.json({
       accessToken: newAccessToken,

@@ -198,13 +198,15 @@ class GoogleOAuthService {
       }
     } else {
       // New user - create account
-      if (mode === 'login') {
-        // User tried to login but doesn't have an account
+      // Allow signup if mode is 'signup' OR if this is an invitation flow
+      // (invitation flows should work even if state parsing failed and defaulted to 'login')
+      if (mode === 'login' && !isInvitationSignup) {
+        // User tried to login but doesn't have an account (and this isn't an invitation flow)
         throw new Error('NO_ACCOUNT');
       }
 
       isNewUser = true;
-      logger.info(`Google OAuth: Creating new user - ${googleUser.email}`);
+      logger.info(`Google OAuth: Creating new user - ${googleUser.email}${isInvitationSignup ? ' (via invitation)' : ''}`);
 
       // Check for existing organization with matching domain
       const emailDomain = this.extractDomainForOrgMatch(googleUser.email);

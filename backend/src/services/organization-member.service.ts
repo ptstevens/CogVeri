@@ -80,7 +80,11 @@ class OrganizationMemberService {
       // First try organization_members table (new multi-org model)
       let query = db('organization_members as om')
         .join('users as u', 'u.id', 'om.user_id')
-        .where('om.organization_id', organizationId);
+        .where('om.organization_id', organizationId)
+        // Exclude system admins from member lists (they use cross-tenant access, not membership)
+        .where(function() {
+          this.where('u.is_system_admin', false).orWhereNull('u.is_system_admin');
+        });
 
       // Filter by status if specified
       if (status === 'active') {
@@ -113,7 +117,11 @@ class OrganizationMemberService {
       // Fallback to legacy users table (transition period)
       let legacyQuery = db('users')
         .where('organization_id', organizationId)
-        .whereNotNull('org_role');
+        .whereNotNull('org_role')
+        // Exclude system admins from member lists
+        .where(function() {
+          this.where('is_system_admin', false).orWhereNull('is_system_admin');
+        });
 
       // Filter by status if specified
       // Treat NULL org_status as 'active' (default state)

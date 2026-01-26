@@ -433,76 +433,80 @@ export const loginWithImpersonationToken = async (
       throw new UnauthorizedError('Invalid or expired impersonation token');
     }
 
-    // 2. Get system admin and target organization details
+    // 2. Get system admin details
     const systemAdmin = await db('users').where('id', tokenRecord.system_admin_id).first();
     if (!systemAdmin) {
       throw new UnauthorizedError('System admin not found');
     }
 
-    // 3. Find the owner of the target organization to impersonate
-    // We impersonate the OWNER of the target org by default
-    const targetOrgOwner = await db('users')
-      .where('organization_id', tokenRecord.organization_id)
-      .where('org_role', 'owner') // Note: 'owner' is lowercase in db based on register function
-      .first();
-
-    if (!targetOrgOwner) {
-      // Fallback: try to find any admin if owner is missing
-      const targetOrgAdmin = await db('users')
-        .where('organization_id', tokenRecord.organization_id)
-        .where('org_role', 'admin') // Note: 'admin' might be lowercase too
-        .first();
-
-      if (!targetOrgAdmin) {
-        throw new NotFoundError(
-          'No eligible user (Owner/Admin) found in target organization to impersonate'
-        );
-      }
-      // logic continues with admin...
+    // Verify the user is actually a system admin
+    if (!systemAdmin.is_system_admin) {
+      throw new UnauthorizedError('User is not a system admin');
     }
 
-    // Default to owner if found, otherwise (logic above needs to assign) - wait I need to assign targetUser correctly
-    const targetUser = targetOrgOwner;
+    // 3. Get target organization details for logging
+    const targetOrg = await db('organizations')
+      .where('id', tokenRecord.organization_id)
+      .first();
 
-    // 4. Generate JWT with impersonation context
+    if (!targetOrg) {
+      throw new NotFoundError('Target organization not found');
+    }
+
+    // 4. Generate JWT with cross-tenant access (sysadmin keeps their own identity)
+    // This allows the sysadmin to access the target org without appearing in user lists
     const accessToken = await jwtService.generateAccessToken(
-      targetUser.id,
-      tokenRecord.organization_id,
+      systemAdmin.id, // Keep sysadmin's ID - they maintain their own identity
+      null, // Don't use default org lookup
       {
-        impersonationId: tokenRecord.id, // Use the unique ID of the impersonation session
+        impersonationId: tokenRecord.id,
         actorUserId: systemAdmin.id,
+      },
+      {
+        // Cross-tenant access: grant owner-level access to target org
+        targetOrgId: tokenRecord.organization_id,
+        grantRole: 'owner',
       }
     );
 
-    const { token: refreshToken } = await jwtService.generateRefreshToken(targetUser.id);
+    const { token: refreshToken } = await jwtService.generateRefreshToken(systemAdmin.id);
 
     // 5. Cleanup used token to prevent replay
     await db('admin_impersonation_tokens').where('id', tokenRecord.id).del();
 
-    // 6. Log the successful login via impersonation
+    // 6. Log the successful cross-tenant access
     await db('organization_audit_logs').insert({
       organization_id: tokenRecord.organization_id,
       actor_id: systemAdmin.id,
-      action: 'admin_impersonation_login',
+      action: 'admin_cross_tenant_access',
       resource_type: 'auth',
-      metadata: { target_user_id: targetUser.id, target_user_email: targetUser.email },
+      metadata: { 
+        sysadmin_email: systemAdmin.email,
+        target_org_id: tokenRecord.organization_id,
+        target_org_name: targetOrg.name,
+      },
       status: 'success',
       created_at: new Date(),
     });
 
     logger.info(
-      `Admin ${systemAdmin.email} logged in as ${targetUser.email} (Org: ${tokenRecord.organization_id}) via impersonation`
+      `Sysadmin ${systemAdmin.email} accessed organization "${targetOrg.name}" (${tokenRecord.organization_id}) via cross-tenant access`
     );
 
-    // 7. Return auth response similar to login
-    const { password: _, ...userWithoutPassword } = targetUser;
+    // 7. Return auth response with sysadmin info (not target org owner)
+    const { password: _, ...userWithoutPassword } = systemAdmin;
 
     res.json({
-      message: 'Impersonation login successful',
+      message: 'Cross-tenant access successful',
       token: accessToken,
       refreshToken,
       user: userWithoutPassword,
       isImpersonating: true,
+      targetOrganization: {
+        id: targetOrg.id,
+        name: targetOrg.name,
+        slug: targetOrg.slug,
+      },
     });
   } catch (error) {
     next(error);

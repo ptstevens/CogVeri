@@ -16,6 +16,7 @@ export interface User {
   org_role?: string;
   org_status?: string;
   is_active: boolean;
+  is_system_admin?: boolean;
   password_updated_at?: Date; // Track when password was last hashed
   created_at: Date;
   updated_at: Date;

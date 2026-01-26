@@ -78,22 +78,29 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <App />
           <Toaster
-            position="top-right"
+            position="bottom-right"
+            containerStyle={{
+              // Ensure toasts don't block clickable elements
+              pointerEvents: 'none',
+            }}
             toastOptions={{
-              duration: 4000,
+              duration: 2500,
               style: {
                 background: '#363636',
                 color: '#fff',
+                pointerEvents: 'auto', // Re-enable pointer events on individual toasts
+                maxWidth: '320px',
+                fontSize: '14px',
               },
               success: {
-                duration: 3000,
+                duration: 2000,
                 iconTheme: {
                   primary: '#10b981',
                   secondary: '#fff',
                 },
               },
               error: {
-                duration: 5000,
+                duration: 4000,
                 iconTheme: {
                   primary: '#ef4444',
                   secondary: '#fff',

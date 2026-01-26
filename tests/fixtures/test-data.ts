@@ -3,14 +3,30 @@
  *
  * Centralized test data for E2E tests. These values should match
  * the seed data in backend/seeds/ for consistent test execution.
+ *
+ * For staging/production tests, set environment variables:
+ * - TEST_USER_EMAIL: Email for staging test account
+ * - TEST_USER_PASSWORD: Password for staging test account
  */
+
+const TEST_ENV = process.env.TEST_ENV || 'local';
 
 // ============================================================================
 // TEST USERS (from seeds/001_users.ts)
 // ============================================================================
 
+// Staging/prod user from environment variables
+const stagingUser = {
+  email: process.env.TEST_USER_EMAIL || '',
+  password: process.env.TEST_USER_PASSWORD || '',
+  name: 'Test User',
+  role: 'admin',
+  orgRole: 'owner',
+};
+
 export const TEST_USERS = {
-  admin: {
+  // Primary test user - uses staging credentials if available, otherwise local seed user
+  admin: TEST_ENV !== 'local' && stagingUser.email ? stagingUser : {
     email: 'admin@cogveri.com',
     password: 'password123',
     name: 'Admin User',

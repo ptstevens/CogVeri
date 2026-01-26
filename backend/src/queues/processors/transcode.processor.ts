@@ -155,7 +155,8 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
           .update({
             storage_key: mp4Key,
             file_type: 'video/mp4',
-            duration_seconds: Math.round(outputMetadata.duration),
+            // Use floor to match video player display (players show floor of duration)
+            duration_seconds: Math.floor(outputMetadata.duration),
             file_size: outputMetadata.size,
             updated_at: new Date(),
           });
@@ -178,7 +179,8 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
         await db('recordings')
           .where('id', recordingId)
           .update({
-            duration_seconds: Math.round(outputMetadata.duration),
+            // Use floor to match video player display (players show floor of duration)
+            duration_seconds: Math.floor(outputMetadata.duration),
             file_size: outputMetadata.size,
             updated_at: new Date(),
           });
@@ -351,7 +353,8 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
         height: variant.height,
         bitrate: variant.bitrate,
         file_size_bytes: variant.fileSize,
-        duration_seconds: Math.round(variant.duration),
+        // Use floor to match video player display (players show floor of duration)
+        duration_seconds: Math.floor(variant.duration),
         is_ready: true, // Mark as ready so getRecordingPlaybackUrl serves the transcoded MP4
         created_at: new Date(),
         updated_at: new Date(),

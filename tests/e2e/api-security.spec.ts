@@ -27,7 +27,7 @@ test.describe('API Security', () => {
       ];
 
       for (const endpoint of protectedEndpoints) {
-        const response = await request.get(`http://localhost:3000${endpoint}`, {
+        const response = await request.get(`${getBackendUrl()}${endpoint}`, {
           headers: { 'Content-Type': 'application/json' },
         });
 
@@ -45,7 +45,7 @@ test.describe('API Security', () => {
       ];
 
       for (const token of invalidTokens) {
-        const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+        const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ test.describe('API Security', () => {
       // Create a manually expired token (this is a malformed JWT for testing)
       const expiredToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0IiwiZXhwIjoxfQ.invalid';
 
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${expiredToken}`,
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ test.describe('API Security', () => {
       const token = await getAuthToken(page);
       expect(token).toBeTruthy();
 
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ test.describe('API Security', () => {
       const token = await getAuthToken(page);
 
       // Admin endpoints may or may not be available depending on user's system role
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.adminOrganizations}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.adminOrganizations}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ test.describe('API Security', () => {
 
       const token = await getAuthToken(page);
 
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.adminOrganizations}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.adminOrganizations}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -161,7 +161,7 @@ test.describe('API Security', () => {
       const userId = payload!.userId;
 
       // Get user's profile
-      const response = await request.get(`http://localhost:3000/api/users/me`, {
+      const response = await request.get(`${getBackendUrl()}/api/users/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ test.describe('API Security', () => {
       const payload = decodeJwtPayload(token!);
       const orgId = payload!.org_id;
 
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -211,7 +211,7 @@ test.describe('API Security', () => {
       const payload = decodeJwtPayload(token!);
       const orgId = payload!.org_id;
 
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.recordings}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.recordings}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -239,7 +239,7 @@ test.describe('API Security', () => {
 
       // Try to access a task from a non-existent or different org
       const fakeTaskId = '00000000-0000-0000-0000-000000000999';
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.taskById(fakeTaskId)}`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.taskById(fakeTaskId)}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -259,7 +259,7 @@ test.describe('API Security', () => {
       const token = await getAuthToken(page);
 
       // Missing required fields
-      const response = await request.post(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.post(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ test.describe('API Security', () => {
 
       const token = await getAuthToken(page);
 
-      const response = await request.post(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.post(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -297,7 +297,7 @@ test.describe('API Security', () => {
       const token = await getAuthToken(page);
       const xssPayload = '<script>alert("xss")</script>';
 
-      const response = await request.post(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      const response = await request.post(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -322,7 +322,7 @@ test.describe('API Security', () => {
       const token = await getAuthToken(page);
 
       // SQL injection in query parameter
-      const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}?status='; DROP TABLE tasks; --`, {
+      const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}?status='; DROP TABLE tasks; --`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -334,7 +334,7 @@ test.describe('API Security', () => {
 
       // If 200, verify tasks table still exists by making another request
       if (response.status() === 200) {
-        const verifyResponse = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+        const verifyResponse = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -351,7 +351,7 @@ test.describe('API Security', () => {
 
       // Make multiple rapid requests
       for (let i = 0; i < 20; i++) {
-        const response = await request.post(`http://localhost:3000${API_ENDPOINTS.login}`, {
+        const response = await request.post(`${getBackendUrl()}${API_ENDPOINTS.login}`, {
           headers: { 'Content-Type': 'application/json' },
           data: {
             email: 'test@test.com',
@@ -379,7 +379,7 @@ test.describe('API Security', () => {
 
       // Make multiple rapid requests
       for (let i = 0; i < 50; i++) {
-        const response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+        const response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -400,7 +400,7 @@ test.describe('API Security', () => {
 
   test.describe('CORS and Headers', () => {
     test('should have security headers', async ({ request }) => {
-      const response = await request.get('http://localhost:3000/health');
+      const response = await request.get(`${getBackendUrl()}/health`);
 
       // Check for common security headers
       const headers = response.headers();
@@ -419,7 +419,7 @@ test.describe('API Security', () => {
     });
 
     test('should handle CORS preflight', async ({ request }) => {
-      const response = await request.fetch('http://localhost:3000/api/tasks', {
+      const response = await request.fetch(`${getBackendUrl()}/api/tasks`, {
         method: 'OPTIONS',
         headers: {
           Origin: 'http://localhost:5173',
@@ -441,7 +441,7 @@ test.describe('API Security', () => {
       expect(token).toBeTruthy();
 
       // Verify token works
-      let response = await request.get(`http://localhost:3000${API_ENDPOINTS.tasks}`, {
+      let response = await request.get(`${getBackendUrl()}${API_ENDPOINTS.tasks}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -450,7 +450,7 @@ test.describe('API Security', () => {
       expect(response.status()).toBe(200);
 
       // Logout
-      await request.post(`http://localhost:3000${API_ENDPOINTS.logout}`, {
+      await request.post(`${getBackendUrl()}${API_ENDPOINTS.logout}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

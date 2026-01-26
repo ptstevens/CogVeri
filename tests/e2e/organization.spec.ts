@@ -325,7 +325,7 @@ test.describe('Organization', () => {
       const org = orgs[0];
 
       const token = await getAuthToken(page);
-      const response = await request.get(`http://localhost:3000/api/organizations/${org.id}`, {
+      const response = await request.get(`${getBackendUrl()}/api/organizations/${org.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -342,7 +342,7 @@ test.describe('Organization', () => {
       const org = orgs[0];
 
       const token = await getAuthToken(page);
-      const response = await request.get(`http://localhost:3000/api/organizations/${org.id}/settings`, {
+      const response = await request.get(`${getBackendUrl()}/api/organizations/${org.id}/settings`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -358,7 +358,7 @@ test.describe('Organization', () => {
       const org = orgs[0];
 
       const token = await getAuthToken(page);
-      const response = await request.get(`http://localhost:3000/api/organizations/${org.id}/members`, {
+      const response = await request.get(`${getBackendUrl()}/api/organizations/${org.id}/members`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -378,7 +378,7 @@ test.describe('Organization', () => {
       const org = orgs[0];
 
       const token = await getAuthToken(page);
-      const response = await request.get(`http://localhost:3000/api/organizations/${org.id}/quota-status`, {
+      const response = await request.get(`${getBackendUrl()}/api/organizations/${org.id}/quota-status`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

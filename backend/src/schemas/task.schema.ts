@@ -25,6 +25,12 @@ export const taskPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
 // UUID validation helper
 const uuidSchema = z.string().uuid('Invalid UUID format');
 
+// Optional UUID that handles empty strings from forms
+const optionalUuidSchema = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  uuidSchema.optional()
+);
+
 // Common ID params schema
 export const idParamSchema = z.object({
   id: uuidSchema,
@@ -40,8 +46,8 @@ export const createTaskSchema = z.object({
   description: z.string().max(5000, 'Description must be 5000 characters or less').optional(),
   type: taskTypeSchema,
   priority: taskPrioritySchema.optional(),
-  assigned_to: uuidSchema.optional().nullable(),
-  reviewed_by: uuidSchema.optional().nullable(),
+  assigned_to: optionalUuidSchema,
+  reviewed_by: optionalUuidSchema,
   due_date: z.preprocess(
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.date().optional()
@@ -51,7 +57,7 @@ export const createTaskSchema = z.object({
     (val) => (val === 0 || val === '' || val === null || val === undefined ? undefined : val),
     z.number().int().positive().optional()
   ),
-  template_id: uuidSchema.optional().nullable(),
+  template_id: optionalUuidSchema,
   tags: z.array(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -62,8 +68,8 @@ export const updateTaskSchema = z.object({
   description: z.string().max(5000).optional(),
   status: taskStatusSchema.optional(),
   priority: taskPrioritySchema.optional(),
-  assigned_to: uuidSchema.optional(),
-  reviewed_by: uuidSchema.optional(),
+  assigned_to: optionalUuidSchema,
+  reviewed_by: optionalUuidSchema,
   due_date: z.preprocess(
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.date().optional()

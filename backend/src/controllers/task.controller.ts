@@ -258,16 +258,16 @@ class TaskController {
       res.json({
         success: true,
         data: {
-          draft,
-          assigned,
-          in_progress: inProgress,
-          submitted,
-          in_review: inReview,
-          completed,
-          rejected,
+          draft: draft.tasks,
+          assigned: assigned.tasks,
+          in_progress: inProgress.tasks,
+          submitted: submitted.tasks,
+          in_review: inReview.tasks,
+          completed: completed.tasks,
+          rejected: rejected.tasks,
           // Legacy aliases for backwards compatibility
-          pending: assigned,
-          reviewed: completed,
+          pending: assigned.tasks,
+          reviewed: completed.tasks,
         },
       });
     } catch (error) {

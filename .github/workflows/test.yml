@@ -55,6 +55,7 @@ jobs:
           DATABASE_URL: postgresql://cogveri_test:cogveri_test_password@localhost:5432/cogveri_test_db
           JWT_SECRET: test-jwt-secret
           JWT_REFRESH_SECRET: test-jwt-refresh-secret
+          OPEN_FOR_BUSINESS: 'true'
         run: npm test
 
       - name: Upload coverage reports

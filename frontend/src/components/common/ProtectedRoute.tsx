@@ -32,8 +32,8 @@ const ProtectedRoute = memo(({ children, requiredRoles }: ProtectedRouteProps) =
     const userOrgRole = user.org_role?.toLowerCase();
     const normalizedRoles = requiredRoles.map(r => r.toLowerCase());
 
-    const hasRequiredRole = normalizedRoles.includes(userRole) ||
-                           normalizedRoles.includes(userOrgRole) ||
+    const hasRequiredRole = (userRole && normalizedRoles.includes(userRole)) ||
+                           (userOrgRole && normalizedRoles.includes(userOrgRole)) ||
                            user.is_system_admin === true;
     if (!hasRequiredRole) {
       // User is authenticated but doesn't have the required role

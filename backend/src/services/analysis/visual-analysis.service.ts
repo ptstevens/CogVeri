@@ -4,7 +4,7 @@
  * Analyzes video frames against rubric visual criteria using Gemini Vision.
  */
 
-import { getVisionAnalysisModel, estimateCost, TokenUsage } from '../../config/gemini';
+import { getVisionAnalysisModel, estimateCost, TokenUsage, type GenerativeModel } from '../../config/gemini';
 import { RubricStep, VisualEvidence, StepScoreValue, ExtractedFrame } from '../../queues/types/job-types';
 import { buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
 import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
@@ -31,8 +31,16 @@ export interface VisualAnalysisResponse {
 }
 
 class VisualAnalysisService {
-  private model = getVisionAnalysisModel();
+  // Lazy-initialized to avoid errors during import when GEMINI_API_KEY is not set (e.g., in tests)
+  private _model: GenerativeModel | null = null;
   private readonly BATCH_SIZE = 4;
+
+  private get model(): GenerativeModel {
+    if (!this._model) {
+      this._model = getVisionAnalysisModel();
+    }
+    return this._model;
+  }
 
   /**
    * Analyze frames against visual criteria

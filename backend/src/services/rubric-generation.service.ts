@@ -26,6 +26,7 @@ import {
   getRubricGenerationModel,
   estimateCost,
   GEMINI_MODELS,
+  type GenerativeModel,
 } from '../config/gemini';
 import {
   buildRubricGenerationPrompt,
@@ -131,8 +132,23 @@ interface TranscriptSegment {
  * Rubric Generation Service
  */
 class RubricGenerationService {
-  private visionModel = getVisionAnalysisModel();
-  private textModel = getRubricGenerationModel();
+  // Lazy-initialized to avoid errors during import when GEMINI_API_KEY is not set (e.g., in tests)
+  private _visionModel: GenerativeModel | null = null;
+  private _textModel: GenerativeModel | null = null;
+
+  private get visionModel(): GenerativeModel {
+    if (!this._visionModel) {
+      this._visionModel = getVisionAnalysisModel();
+    }
+    return this._visionModel;
+  }
+
+  private get textModel(): GenerativeModel {
+    if (!this._textModel) {
+      this._textModel = getRubricGenerationModel();
+    }
+    return this._textModel;
+  }
 
   /**
    * Upload video to temp S3 location and start transcription

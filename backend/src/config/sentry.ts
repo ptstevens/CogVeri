@@ -3,9 +3,12 @@ import { Express, Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 
 // ProfilingIntegration is optional - only load if available
-let ProfilingIntegration: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type IntegrationConstructor = new () => Sentry.Integration;
+let ProfilingIntegration: IntegrationConstructor | null = null;
 try {
-  ProfilingIntegration = require('@sentry/profiling-node').ProfilingIntegration;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ProfilingIntegration = require('@sentry/profiling-node').ProfilingIntegration as IntegrationConstructor;
 } catch {
   // Profiling not available - this is fine for production
 }
@@ -71,7 +74,7 @@ export const initSentry = (): void => {
         new Sentry.Integrations.Postgres(),
 
         // Profiling integration for performance insights (if available)
-        ...(ProfilingIntegration ? [new ProfilingIntegration()] : []),
+        ...(ProfilingIntegration ? [new ProfilingIntegration()] : [] as Sentry.Integration[]),
       ],
 
       // Error filtering
@@ -153,9 +156,9 @@ export const setupExpressErrorHandler = (app: Express): void => {
 
   // The error handler must be before any other error middleware
   app.use(Sentry.Handlers.errorHandler({
-    shouldHandleError(error: any) {
+    shouldHandleError(error: Error & { statusCode?: number }) {
       // Capture all 500 errors
-      if (error.statusCode >= 500) {
+      if (error.statusCode && error.statusCode >= 500) {
         return true;
       }
 

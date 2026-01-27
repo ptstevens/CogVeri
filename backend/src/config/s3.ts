@@ -132,9 +132,9 @@ export function getS3PublicUrlBase(): string | undefined {
  * @param _organizationId - Kept for backward compatibility, not used
  * @returns The configured S3 bucket name
  */
-export async function resolveOrganizationBucket(
+export function resolveOrganizationBucket(
   _organizationId?: string | null
-): Promise<string> {
+): string {
   const bucket = getS3Bucket();
   if (!bucket) {
     throw new Error('No bucket configured - set AWS_S3_BUCKET environment variable');
@@ -146,10 +146,10 @@ export async function resolveOrganizationBucket(
  * Get bucket for a recording by checking the recording's storage_bucket field
  * or resolving from organization.
  */
-export async function getRecordingBucket(
+export function getRecordingBucket(
   storageBucket: string | null | undefined,
   organizationId: string | null | undefined
-): Promise<string> {
+): string {
   // If recording has explicit bucket, use it
   if (storageBucket) {
     return storageBucket;

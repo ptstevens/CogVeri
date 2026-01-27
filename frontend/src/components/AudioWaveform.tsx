@@ -179,7 +179,7 @@ export function createWaveformAnalyzer(
   let analyser: AnalyserNode | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let animationFrame: number | null = null;
-  let currentLevels: number[] = Array(barCount).fill(0);
+  const currentLevels: number[] = Array(barCount).fill(0);
   let active = false;
 
   // Check if stream has audio

@@ -92,7 +92,7 @@ export const STRIPE_PRICE_IDS: StripePriceConfig = {
 export const PRICE_ID_TO_TIER: Map<string, { tier: string; interval: 'monthly' | 'yearly' }> = new Map();
 
 // Populate the reverse mapping
-Object.entries(STRIPE_PRICE_IDS).forEach(([tierName, prices]) => {
+(Object.entries(STRIPE_PRICE_IDS) as [string, TierPriceIds][]).forEach(([tierName, prices]) => {
   if (prices.monthly) {
     PRICE_ID_TO_TIER.set(prices.monthly, { tier: tierName, interval: 'monthly' });
   }

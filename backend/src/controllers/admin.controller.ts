@@ -11,7 +11,8 @@ class AdminController {
    */
   async createOrganization(req: Request, res: Response): Promise<void> {
     try {
-      const { name, ownerEmail, tier = 'free' } = req.body;
+      const body = req.body as { name?: string; ownerEmail?: string; tier?: string };
+      const { name, ownerEmail, tier = 'free' } = body;
 
       if (!name || !ownerEmail) {
         res.status(400).json({ error: 'Organization name and owner email are required' });
@@ -25,13 +26,21 @@ class AdminController {
       }
 
       // Check if user exists
-      let user = await db('users').where('email', ownerEmail.toLowerCase()).first();
+      interface DbUser {
+        id: string;
+        email: string;
+        name: string | null;
+        organization_id: string | null;
+        [key: string]: unknown;
+      }
+      let user: DbUser | undefined = await db('users').where('email', ownerEmail.toLowerCase()).first();
 
       if (!user) {
         // Create new user with invited status
+        const emailPrefix = ownerEmail.split('@')[0] || 'user';
         const result = await db('users').insert({
           email: ownerEmail.toLowerCase(),
-          name: ownerEmail.split('@')[0], // Use part before @ as placeholder name
+          name: emailPrefix, // Use part before @ as placeholder name
           password: null, // Will need to set password on first login
           org_role: 'owner',
           org_status: 'invited',
@@ -41,7 +50,7 @@ class AdminController {
           updated_at: new Date(),
         }).returning('*');
 
-        user = Array.isArray(result) ? result[0] : result;
+        user = (Array.isArray(result) ? result[0] : result) as DbUser;
       }
 
       // Check if user is already in an organization
@@ -87,9 +96,10 @@ class AdminController {
         },
         message: 'Organization created successfully',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       res.status(500).json({
-        error: error.message || 'Failed to create organization',
+        error: err.message || 'Failed to create organization',
       });
     }
   }
@@ -100,7 +110,7 @@ class AdminController {
   async updateOrganizationTier(req: Request, res: Response): Promise<void> {
     try {
       const { organizationId } = req.params;
-      const { tier } = req.body;
+      const { tier } = req.body as { tier?: string };
 
       if (!organizationId) {
         res.status(400).json({ error: 'Organization ID is required' });
@@ -170,9 +180,9 @@ class AdminController {
         message: `Organization tier updated to ${tier}`,
         tier: tier.toLowerCase(),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to update organization tier',
+        error: (error as Error).message || 'Failed to update organization tier',
       });
     }
   }
@@ -263,9 +273,9 @@ class AdminController {
           hasMore: offset + organizations.length < total,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch organizations',
+        error: (error as Error).message || 'Failed to fetch organizations',
       });
     }
   }
@@ -362,9 +372,9 @@ class AdminController {
           })),
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch organization details',
+        error: (error as Error).message || 'Failed to fetch organization details',
       });
     }
   }
@@ -464,9 +474,9 @@ class AdminController {
           },
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch metrics',
+        error: (error as Error).message || 'Failed to fetch metrics',
       });
     }
   }
@@ -477,7 +487,7 @@ class AdminController {
   async suspendOrganization(req: Request, res: Response): Promise<void> {
     try {
       const { organizationId } = req.params;
-      const { reason } = req.body;
+      const { reason } = req.body as { reason?: string };
 
       if (!organizationId) {
         res.status(400).json({ error: 'Organization ID is required' });
@@ -490,9 +500,9 @@ class AdminController {
         success: true,
         message: 'Organization suspended successfully',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({
-        error: error.message || 'Failed to suspend organization',
+        error: (error as Error).message || 'Failed to suspend organization',
       });
     }
   }
@@ -515,9 +525,9 @@ class AdminController {
         success: true,
         message: 'Organization unsuspended successfully',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({
-        error: error.message || 'Failed to unsuspend organization',
+        error: (error as Error).message || 'Failed to unsuspend organization',
       });
     }
   }
@@ -584,9 +594,9 @@ class AdminController {
           hasMore: offset + logs.length < total,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch audit logs',
+        error: (error as Error).message || 'Failed to fetch audit logs',
       });
     }
   }
@@ -648,9 +658,9 @@ class AdminController {
           message: 'You can now access this organization as a member. Token is valid for 1 hour.',
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to create impersonation token',
+        error: (error as Error).message || 'Failed to create impersonation token',
       });
     }
   }
@@ -736,9 +746,9 @@ class AdminController {
           features,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch organization features',
+        error: (error as Error).message || 'Failed to fetch organization features',
       });
     }
   }
@@ -750,7 +760,7 @@ class AdminController {
   async updateOrganizationFeatures(req: Request, res: Response): Promise<void> {
     try {
       const { organizationId } = req.params;
-      const { features } = req.body;
+      const { features } = req.body as { features?: Record<string, boolean | null> };
 
       if (!organizationId) {
         res.status(400).json({ error: 'Organization ID is required' });
@@ -834,9 +844,9 @@ class AdminController {
         message: changes.length > 0 ? `Updated ${changes.length} feature override(s)` : 'No changes made',
         changes,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to update organization features',
+        error: (error as Error).message || 'Failed to update organization features',
       });
     }
   }
@@ -923,9 +933,9 @@ class AdminController {
           limits,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to fetch organization limits',
+        error: (error as Error).message || 'Failed to fetch organization limits',
       });
     }
   }
@@ -937,7 +947,7 @@ class AdminController {
   async updateOrganizationLimits(req: Request, res: Response): Promise<void> {
     try {
       const { organizationId } = req.params;
-      const { limits } = req.body;
+      const { limits } = req.body as { limits?: Record<string, number | null> };
 
       if (!organizationId) {
         res.status(400).json({ error: 'Organization ID is required' });
@@ -1021,9 +1031,9 @@ class AdminController {
         message: changes.length > 0 ? `Updated ${changes.length} limit override(s)` : 'No changes made',
         changes,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
-        error: error.message || 'Failed to update organization limits',
+        error: (error as Error).message || 'Failed to update organization limits',
       });
     }
   }

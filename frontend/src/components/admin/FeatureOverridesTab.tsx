@@ -265,7 +265,7 @@ export default function FeatureOverridesTab({ organizationId }: Props) {
         <p className="text-xs text-gray-500">
           <span className="inline-block w-3 h-3 bg-amber-50 border border-amber-200 rounded mr-1"></span>
           Features highlighted in amber have custom overrides applied.
-          Click "Reset" to restore tier defaults.
+          Click &quot;Reset&quot; to restore tier defaults.
         </p>
       </div>
     </div>

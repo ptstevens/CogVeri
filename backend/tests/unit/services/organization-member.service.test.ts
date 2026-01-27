@@ -24,7 +24,10 @@ vi.mock('../../../src/config/database', () => {
     orderBy: vi.fn().mockReturnThis(),
     whereNotNull: vi.fn().mockReturnThis(),
   };
-  return { db: vi.fn(() => mKnex) };
+  const dbFn = vi.fn(() => mKnex) as any;
+  // Add raw method for SQL function calls
+  dbFn.raw = vi.fn().mockResolvedValue({ rows: [{ result: '{}' }] });
+  return { db: dbFn };
 });
 
 vi.mock('../../../src/services/email.service', () => ({

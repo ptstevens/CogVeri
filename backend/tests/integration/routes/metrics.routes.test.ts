@@ -81,6 +81,16 @@ vi.mock('../../../src/utils/logger', () => ({
     error: vi.fn(),
     warn: vi.fn(),
     debug: vi.fn(),
+    http: vi.fn(),
+    verbose: vi.fn(),
+    silly: vi.fn(),
+    child: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      http: vi.fn(),
+    })),
   },
   correlationMiddleware: vi.fn(() => (_req: any, _res: any, next: any) => next()),
   requestContext: {

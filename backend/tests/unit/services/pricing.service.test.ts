@@ -31,6 +31,31 @@ vi.mock('../../../src/services/metrics.service', () => ({
   },
 }));
 
+/**
+ * Helper to create a table-aware db mock.
+ * - pricing_tiers table: returns null/empty to trigger fallback to code constants
+ * - other tables: returns the provided usage data
+ */
+const createTableAwareDbMock = (usageData: Record<string, unknown> | null = null) => {
+  return vi.fn().mockImplementation((tableName: string) => {
+    if (tableName === 'pricing_tiers') {
+      // Return null from first() to trigger fallback to PRICING_TIERS constants
+      return {
+        where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        first: vi.fn().mockResolvedValue(null),
+      };
+    }
+    // Default chain for other tables (e.g., organizations)
+    return {
+      where: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      first: vi.fn().mockResolvedValue(usageData),
+    };
+  });
+};
+
 describe('PricingService', () => {
   const organizationId = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -75,61 +100,22 @@ describe('PricingService', () => {
       expect(freeTier.highlighted).toBe(false);
     });
 
-    it('should have correct structure for pro tier', () => {
-      const proTier = PRICING_TIERS.pro;
-      expect(proTier.id).toBe('pro');
-      expect(proTier.name).toBe('pro');
-      expect(proTier.displayName).toBe('Pro');
-      expect(proTier.monthlyPrice).toBe(19);
-      expect(proTier.yearlyPrice).toBe(182);
-      expect(proTier.limits.maxMembers).toBe(3);
-      expect(proTier.limits.maxStorageGb).toBe(50);
-      expect(proTier.limits.maxTasksPerMonth).toBe(-1); // unlimited
-      expect(proTier.features.removeWatermark).toBe(true);
-      expect(proTier.features.basicTranscription).toBe(true);
-    });
-
-    it('should have correct structure for team tier (highlighted)', () => {
-      const teamTier = PRICING_TIERS.team;
-      expect(teamTier.id).toBe('team');
-      expect(teamTier.name).toBe('team');
-      expect(teamTier.displayName).toBe('Team');
-      expect(teamTier.monthlyPrice).toBe(29);
-      expect(teamTier.yearlyPrice).toBe(278);
-      expect(teamTier.limits.maxMembers).toBe(25);
-      expect(teamTier.limits.maxStorageGb).toBe(250);
-      expect(teamTier.limits.maxVideosPerMonth).toBe(-1); // unlimited
-      expect(teamTier.highlighted).toBe(true); // Most popular
-      expect(teamTier.features.timestampedComments).toBe(true);
-      expect(teamTier.features.teamWorkspaces).toBe(true);
-    });
-
-    it('should have correct structure for business tier', () => {
-      const businessTier = PRICING_TIERS.business;
-      expect(businessTier.id).toBe('business');
-      expect(businessTier.name).toBe('business');
-      expect(businessTier.displayName).toBe('Business');
-      expect(businessTier.monthlyPrice).toBe(49);
-      expect(businessTier.yearlyPrice).toBe(470);
-      expect(businessTier.limits.maxMembers).toBe(100);
-      expect(businessTier.limits.maxStorageGb).toBe(1000);
-      expect(businessTier.limits.maxExternalContributors).toBe(-1); // unlimited
-      expect(businessTier.features.ssoSaml).toBe(true);
-      expect(businessTier.features.auditLogs).toBe(true);
-      expect(businessTier.features.apiAccess).toBe(true);
-    });
-
     it('should have correct structure for enterprise tier', () => {
       const enterpriseTier = PRICING_TIERS.enterprise;
       expect(enterpriseTier.id).toBe('enterprise');
       expect(enterpriseTier.name).toBe('enterprise');
       expect(enterpriseTier.displayName).toBe('Enterprise');
-      expect(enterpriseTier.monthlyPrice).toBe(0); // Custom pricing
+      expect(enterpriseTier.monthlyPrice).toBe(250); // Starting price
+      expect(enterpriseTier.yearlyPrice).toBe(2400);
       expect(enterpriseTier.limits.maxMembers).toBe(-1); // unlimited
       expect(enterpriseTier.limits.maxStorageGb).toBe(-1); // unlimited
+      expect(enterpriseTier.limits.maxTasksPerMonth).toBe(-1); // unlimited
+      expect(enterpriseTier.limits.maxVideosPerMonth).toBe(-1); // unlimited
       expect(enterpriseTier.features.scimProvisioning).toBe(true);
       expect(enterpriseTier.features.dedicatedCsm).toBe(true);
       expect(enterpriseTier.features.customDomain).toBe(true);
+      expect(enterpriseTier.features.ssoSaml).toBe(true);
+      expect(enterpriseTier.features.apiAccess).toBe(true);
     });
 
     it('should have all tiers with required properties', () => {
@@ -147,17 +133,15 @@ describe('PricingService', () => {
       });
     });
 
-    it('should have increasing prices for paid tiers', () => {
+    it('should have free tier at zero price and enterprise as paid', () => {
       expect(PRICING_TIERS.free.monthlyPrice).toBe(0);
-      expect(PRICING_TIERS.pro.monthlyPrice).toBeGreaterThan(0);
-      expect(PRICING_TIERS.team.monthlyPrice).toBeGreaterThan(PRICING_TIERS.pro.monthlyPrice);
-      expect(PRICING_TIERS.business.monthlyPrice).toBeGreaterThan(PRICING_TIERS.team.monthlyPrice);
+      expect(PRICING_TIERS.enterprise.monthlyPrice).toBeGreaterThan(0);
     });
 
-    it('should have annual discount (~20%)', () => {
-      const proMonthlyTotal = PRICING_TIERS.pro.monthlyPrice * 12;
-      const proYearly = PRICING_TIERS.pro.yearlyPrice;
-      const discount = (proMonthlyTotal - proYearly) / proMonthlyTotal;
+    it('should have annual discount for enterprise tier', () => {
+      const monthlyTotal = PRICING_TIERS.enterprise.monthlyPrice * 12;
+      const yearly = PRICING_TIERS.enterprise.yearlyPrice;
+      const discount = (monthlyTotal - yearly) / monthlyTotal;
       expect(discount).toBeGreaterThanOrEqual(0.15); // At least 15% discount
       expect(discount).toBeLessThanOrEqual(0.25); // At most 25% discount
     });
@@ -165,12 +149,18 @@ describe('PricingService', () => {
 
   describe('getPricingTiers', () => {
     it('should return all pricing tiers', async () => {
+      // Mock db to return null for pricing_tiers (triggers fallback to constants)
+      (db as any).mockImplementation(createTableAwareDbMock());
+
       const tiers = await pricingService.getPricingTiers();
-      expect(tiers).toHaveLength(5);
-      expect(tiers.map((t) => t.name)).toEqual(['free', 'pro', 'team', 'business', 'enterprise']);
+      expect(tiers).toHaveLength(2);
+      expect(tiers.map((t) => t.name)).toEqual(['free', 'enterprise']);
     });
 
     it('should return tiers with all properties', async () => {
+      // Mock db to return null for pricing_tiers (triggers fallback to constants)
+      (db as any).mockImplementation(createTableAwareDbMock());
+
       const tiers = await pricingService.getPricingTiers();
       tiers.forEach((tier) => {
         expect(tier).toHaveProperty('id');
@@ -181,21 +171,26 @@ describe('PricingService', () => {
   });
 
   describe('getPricingTier', () => {
+    beforeEach(() => {
+      // Mock db to return null for pricing_tiers (triggers fallback to constants)
+      (db as any).mockImplementation(createTableAwareDbMock());
+    });
+
     it('should return specific tier by name', async () => {
-      const tier = await pricingService.getPricingTier('team');
-      expect(tier.name).toBe('team');
-      expect(tier.displayName).toBe('Team');
-      expect(tier.monthlyPrice).toBe(29);
+      const tier = await pricingService.getPricingTier('enterprise');
+      expect(tier.name).toBe('enterprise');
+      expect(tier.displayName).toBe('Enterprise');
+      expect(tier.monthlyPrice).toBe(250);
     });
 
     it('should be case insensitive', async () => {
-      const tier1 = await pricingService.getPricingTier('TEAM');
-      const tier2 = await pricingService.getPricingTier('Team');
-      const tier3 = await pricingService.getPricingTier('team');
+      const tier1 = await pricingService.getPricingTier('ENTERPRISE');
+      const tier2 = await pricingService.getPricingTier('Enterprise');
+      const tier3 = await pricingService.getPricingTier('enterprise');
 
-      expect(tier1.name).toBe('team');
-      expect(tier2.name).toBe('team');
-      expect(tier3.name).toBe('team');
+      expect(tier1.name).toBe('enterprise');
+      expect(tier2.name).toBe('enterprise');
+      expect(tier3.name).toBe('enterprise');
     });
 
     it('should fallback to free tier for invalid tier name', async () => {
@@ -207,6 +202,12 @@ describe('PricingService', () => {
   });
 
   describe('updateOrganizationTier', () => {
+    beforeEach(() => {
+      // All updateOrganizationTier tests need the table-aware mock
+      // for getPricingTier call inside the transaction
+      (db as any).mockImplementation(createTableAwareDbMock());
+    });
+
     it('should update organization tier successfully', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
@@ -216,7 +217,7 @@ describe('PricingService', () => {
       // Create chainable mock with proper data
       const mockChain = createMockQueryBuilder({
         firstResult: mockOrg,
-        updateReturningResult: [{ ...mockOrg, subscription_tier: 'team' }],
+        updateReturningResult: [{ ...mockOrg, subscription_tier: 'enterprise' }],
       });
 
       // Mock db.transaction to use our mockChain
@@ -225,14 +226,16 @@ describe('PricingService', () => {
         return await callback(trx);
       });
 
-      const result = await pricingService.updateOrganizationTier(organizationId, 'team');
+      const result = await pricingService.updateOrganizationTier(organizationId, 'enterprise');
 
       expect(result.previousTier).toBe('free');
-      expect(result.newTier).toBe('team');
+      expect(result.newTier).toBe('enterprise');
       expect(mockChain.update).toHaveBeenCalled();
     });
 
-    it('should update storage limits when upgrading', async () => {
+    it('should not update storage limits when upgrading to unlimited tier', async () => {
+      // Note: storageService.updateMaxStorage is only called when maxStorageGb > 0
+      // Enterprise tier has unlimited storage (-1), so the call is skipped
       const mockOrg = createMockOrganization({
         id: organizationId,
         subscription_tier: 'free',
@@ -241,7 +244,7 @@ describe('PricingService', () => {
       // Create chainable mock with proper data
       const mockChain = createMockQueryBuilder({
         firstResult: mockOrg,
-        updateReturningResult: [{ ...mockOrg, subscription_tier: 'team' }],
+        updateReturningResult: [{ ...mockOrg, subscription_tier: 'enterprise' }],
       });
 
       // Mock db.transaction to use our mockChain
@@ -250,12 +253,10 @@ describe('PricingService', () => {
         return await callback(trx);
       });
 
-      await pricingService.updateOrganizationTier(organizationId, 'team');
+      await pricingService.updateOrganizationTier(organizationId, 'enterprise');
 
-      expect(storageService.updateMaxStorage).toHaveBeenCalledWith(
-        organizationId,
-        250 // team tier storage
-      );
+      // Enterprise has unlimited storage (-1), so updateMaxStorage is NOT called
+      expect(storageService.updateMaxStorage).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundError when organization not found', async () => {
@@ -271,7 +272,7 @@ describe('PricingService', () => {
       });
 
       await expect(
-        pricingService.updateOrganizationTier(organizationId, 'team')
+        pricingService.updateOrganizationTier(organizationId, 'enterprise')
       ).rejects.toThrow('Organization not found');
     });
 
@@ -284,7 +285,7 @@ describe('PricingService', () => {
       // Create chainable mock with proper data
       const mockChain = createMockQueryBuilder({
         firstResult: mockOrg,
-        updateReturningResult: [{ ...mockOrg, subscription_tier: 'pro' }],
+        updateReturningResult: [{ ...mockOrg, subscription_tier: 'enterprise' }],
       });
 
       // Mock db.transaction to use our mockChain
@@ -293,7 +294,7 @@ describe('PricingService', () => {
         return await callback(trx);
       });
 
-      await pricingService.updateOrganizationTier(organizationId, 'pro');
+      await pricingService.updateOrganizationTier(organizationId, 'enterprise');
 
       expect(metricsService.invalidateRateLimitCache).toHaveBeenCalledWith(organizationId);
     });
@@ -303,34 +304,29 @@ describe('PricingService', () => {
     it('should return allowed=true when under limit', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
-        subscription_tier: 'team',
+        subscription_tier: 'free',
       });
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 10,
-          storage_gb: 50,
-          tasks_this_month: 100,
-          videos_this_month: 20,
-          external_contributors: 5,
-        }),
-      };
-
-      (db as any).mockReturnValue(mockChain);
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 1,
+        storage_gb: 3,
+        tasks_this_month: 100,
+        videos_this_month: 3,
+        external_contributors: 5,
+      }));
 
       const result = await pricingService.checkFeatureLimit(organizationId, 'members');
 
       expect(result.allowed).toBe(true);
-      expect(result.current).toBe(10);
-      expect(result.limit).toBe(25); // team tier
+      expect(result.current).toBe(1);
+      expect(result.limit).toBe(2); // free tier maxMembers
       expect(result.isUnlimited).toBe(false);
     });
 
-    it('should return allowed=false when at limit', async () => {
+    it('should return allowed=false when at video limit', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
         subscription_tier: 'free',
@@ -338,50 +334,40 @@ describe('PricingService', () => {
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 1,
-          storage_gb: 5,
-          tasks_this_month: 11, // over limit of 10
-          videos_this_month: 25,
-          external_contributors: 5,
-        }),
-      };
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 1,
+        storage_gb: 3,
+        tasks_this_month: 5,
+        videos_this_month: 6, // over limit of 5
+        external_contributors: 5,
+      }));
 
-      (db as any).mockReturnValue(mockChain);
-
-      const result = await pricingService.checkFeatureLimit(organizationId, 'tasks');
+      const result = await pricingService.checkFeatureLimit(organizationId, 'videos');
 
       expect(result.allowed).toBe(false);
-      expect(result.current).toBe(11);
-      expect(result.limit).toBe(10); // free tier
+      expect(result.current).toBe(6);
+      expect(result.limit).toBe(5); // free tier maxVideosPerMonth
     });
 
-    it('should handle unlimited limits (-1)', async () => {
+    it('should handle unlimited limits (-1) for enterprise', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
-        subscription_tier: 'team',
+        subscription_tier: 'enterprise',
       });
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 10,
-          storage_gb: 50,
-          tasks_this_month: 1000,
-          videos_this_month: 500,
-          external_contributors: 5,
-        }),
-      };
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 100,
+        storage_gb: 500,
+        tasks_this_month: 1000,
+        videos_this_month: 500,
+        external_contributors: 50,
+      }));
 
-      (db as any).mockReturnValue(mockChain);
-
-      const result = await pricingService.checkFeatureLimit(organizationId, 'tasks');
+      const result = await pricingService.checkFeatureLimit(organizationId, 'members');
 
       expect(result.allowed).toBe(true);
       expect(result.isUnlimited).toBe(true);
@@ -389,7 +375,7 @@ describe('PricingService', () => {
       expect(result.percentageUsed).toBe(0);
     });
 
-    it('should check external contributors limit', async () => {
+    it('should handle unlimited external contributors on free tier', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
         subscription_tier: 'free',
@@ -397,25 +383,21 @@ describe('PricingService', () => {
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 1,
-          storage_gb: 3,
-          tasks_this_month: 5,
-          videos_this_month: 10,
-          external_contributors: 6, // over limit of 5
-        }),
-      };
-
-      (db as any).mockReturnValue(mockChain);
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 1,
+        storage_gb: 3,
+        tasks_this_month: 5,
+        videos_this_month: 3,
+        external_contributors: 100, // unlimited on free tier
+      }));
 
       const result = await pricingService.checkFeatureLimit(organizationId, 'externalContributors');
 
-      expect(result.allowed).toBe(false);
-      expect(result.current).toBe(6);
-      expect(result.limit).toBe(5);
+      // Free tier has unlimited external contributors (-1)
+      expect(result.allowed).toBe(true);
+      expect(result.isUnlimited).toBe(true);
+      expect(result.limit).toBe(-1);
     });
   });
 
@@ -423,58 +405,47 @@ describe('PricingService', () => {
     it('should return complete usage stats', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
-        subscription_tier: 'team',
+        subscription_tier: 'free',
       });
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 15,
-          storage_gb: 100,
-          tasks_this_month: 50,
-          videos_this_month: 75,
-          external_contributors: 10,
-        }),
-      };
-
-      (db as any).mockReturnValue(mockChain);
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 15,
+        storage_gb: 100,
+        tasks_this_month: 50,
+        videos_this_month: 75,
+        external_contributors: 10,
+      }));
 
       const result = await pricingService.getOrganizationUsage(organizationId);
 
-      expect(result.tier.name).toBe('team');
+      expect(result.tier.name).toBe('free');
       // Usage stats structure validation
       expect(result.usage).toHaveProperty('members');
       expect(result.usage).toHaveProperty('storage');
       expect(result.usage).toHaveProperty('videos');
       expect(result.usage).toHaveProperty('externalContributors');
-      expect(result.usage.members.limit).toBe(25); // team tier limit
-      expect(result.usage.videos.isUnlimited).toBe(true);
+      expect(result.usage.members.limit).toBe(2); // free tier limit
     });
 
     it('should generate warnings when usage is high', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
-        subscription_tier: 'team',
+        subscription_tier: 'free',
       });
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 23, // 92% of 25
-          storage_gb: 225, // 90% of 250
-          tasks_this_month: 50,
-          videos_this_month: 100,
-          external_contributors: 10,
-        }),
-      };
-
-      (db as any).mockReturnValue(mockChain);
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 2, // at limit of 2
+        storage_gb: 4.5, // 90% of 5
+        tasks_this_month: 50,
+        videos_this_month: 4, // 80% of 5
+        external_contributors: 10,
+      }));
 
       const result = await pricingService.getOrganizationUsage(organizationId);
 
@@ -482,30 +453,25 @@ describe('PricingService', () => {
       expect(result).toHaveProperty('warnings');
       expect(Array.isArray(result.warnings)).toBe(true);
       // Note: Actual warning generation depends on mock chain working correctly
-      // The pricing tier limits are: 25 members, 250GB storage
+      // The pricing tier limits are: 2 members, 5GB storage, 5 videos
     });
 
-    it('should not warn for unlimited limits', async () => {
+    it('should not warn for unlimited limits on enterprise', async () => {
       const mockOrg = createMockOrganization({
         id: organizationId,
-        subscription_tier: 'business',
+        subscription_tier: 'enterprise',
       });
 
       (metricsService.getOrganizationWithCache as any).mockResolvedValue(mockOrg);
 
-      const mockChain = {
-        where: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({
-          member_count: 50,
-          storage_gb: 100,
-          tasks_this_month: 10000, // Very high but unlimited
-          videos_this_month: 5000,
-          external_contributors: 100, // Unlimited on business
-        }),
-      };
-
-      (db as any).mockReturnValue(mockChain);
+      // Table-aware mock: pricing_tiers returns null, other tables return usage data
+      (db as any).mockImplementation(createTableAwareDbMock({
+        member_count: 500,
+        storage_gb: 1000,
+        tasks_this_month: 10000, // Very high but unlimited
+        videos_this_month: 5000,
+        external_contributors: 100, // Unlimited on enterprise
+      }));
 
       const result = await pricingService.getOrganizationUsage(organizationId);
 
@@ -518,17 +484,20 @@ describe('PricingService', () => {
 
   describe('hasFeatureAccess', () => {
     it('should return true for features included in tier', () => {
-      expect(pricingService.hasFeatureAccess('team', 'timestampedComments')).toBe(true);
-      expect(pricingService.hasFeatureAccess('team', 'teamWorkspaces')).toBe(true);
-      expect(pricingService.hasFeatureAccess('business', 'ssoSaml')).toBe(true);
+      // Free tier has basic features
+      expect(pricingService.hasFeatureAccess('free', 'basicTranscription')).toBe(true);
+      expect(pricingService.hasFeatureAccess('free', 'basicAnalytics')).toBe(true);
+      // Enterprise has all features
+      expect(pricingService.hasFeatureAccess('enterprise', 'timestampedComments')).toBe(true);
+      expect(pricingService.hasFeatureAccess('enterprise', 'ssoSaml')).toBe(true);
       expect(pricingService.hasFeatureAccess('enterprise', 'dedicatedCsm')).toBe(true);
     });
 
     it('should return false for features not included in tier', () => {
       expect(pricingService.hasFeatureAccess('free', 'removeWatermark')).toBe(false);
       expect(pricingService.hasFeatureAccess('free', 'hdRecording')).toBe(false);
-      expect(pricingService.hasFeatureAccess('pro', 'ssoSaml')).toBe(false);
-      expect(pricingService.hasFeatureAccess('team', 'apiAccess')).toBe(false);
+      expect(pricingService.hasFeatureAccess('free', 'ssoSaml')).toBe(false);
+      expect(pricingService.hasFeatureAccess('free', 'apiAccess')).toBe(false);
     });
 
     it('should return false for invalid tier', () => {
@@ -536,8 +505,8 @@ describe('PricingService', () => {
     });
 
     it('should be case insensitive for tier name', () => {
-      expect(pricingService.hasFeatureAccess('TEAM', 'timestampedComments')).toBe(true);
-      expect(pricingService.hasFeatureAccess('Team', 'timestampedComments')).toBe(true);
+      expect(pricingService.hasFeatureAccess('ENTERPRISE', 'timestampedComments')).toBe(true);
+      expect(pricingService.hasFeatureAccess('Enterprise', 'timestampedComments')).toBe(true);
     });
   });
 
@@ -600,39 +569,39 @@ describe('PricingService', () => {
 
   describe('compareTiers', () => {
     it('should identify upgrade correctly', () => {
-      const comparison = pricingService.compareTiers('free', 'team');
+      const comparison = pricingService.compareTiers('free', 'enterprise');
 
       expect(comparison.isUpgrade).toBe(true);
-      expect(comparison.priceDifference).toBe(29);
+      expect(comparison.priceDifference).toBe(250); // enterprise monthlyPrice
       expect(comparison.newFeatures.length).toBeGreaterThan(0);
     });
 
     it('should identify downgrade correctly', () => {
-      const comparison = pricingService.compareTiers('business', 'pro');
+      const comparison = pricingService.compareTiers('enterprise', 'free');
 
       expect(comparison.isUpgrade).toBe(false);
-      expect(comparison.priceDifference).toBe(-30); // 19 - 49
+      expect(comparison.priceDifference).toBe(-250); // 0 - 250
       expect(comparison.removedFeatures.length).toBeGreaterThan(0);
     });
 
-    it('should list new features when upgrading', () => {
-      const comparison = pricingService.compareTiers('pro', 'team');
+    it('should list new features when upgrading to enterprise', () => {
+      const comparison = pricingService.compareTiers('free', 'enterprise');
 
-      expect(comparison.newFeatures).toContain('Timestamped Comments');
-      expect(comparison.newFeatures).toContain('Team Workspaces');
-      expect(comparison.newFeatures).toContain('Advanced Analytics');
+      expect(comparison.newFeatures).toContain('SSO/SAML');
+      expect(comparison.newFeatures).toContain('API Access');
+      expect(comparison.newFeatures).toContain('Dedicated CSM');
     });
 
-    it('should list removed features when downgrading', () => {
-      const comparison = pricingService.compareTiers('business', 'team');
+    it('should list removed features when downgrading from enterprise', () => {
+      const comparison = pricingService.compareTiers('enterprise', 'free');
 
       expect(comparison.removedFeatures).toContain('SSO/SAML');
       expect(comparison.removedFeatures).toContain('API Access');
-      expect(comparison.removedFeatures).toContain('Audit Logs');
+      expect(comparison.removedFeatures).toContain('Dedicated CSM');
     });
 
     it('should list limit changes', () => {
-      const comparison = pricingService.compareTiers('free', 'team');
+      const comparison = pricingService.compareTiers('free', 'enterprise');
 
       expect(comparison.limitChanges.length).toBeGreaterThan(0);
       expect(comparison.limitChanges.some((c) => c.name === 'Team Members')).toBe(true);
@@ -640,50 +609,38 @@ describe('PricingService', () => {
     });
 
     it('should show Unlimited for -1 limits', () => {
-      const comparison = pricingService.compareTiers('pro', 'team');
+      const comparison = pricingService.compareTiers('free', 'enterprise');
 
-      const tasksChange = comparison.limitChanges.find((c) => c.name === 'Videos per Month');
-      if (tasksChange) {
-        expect(tasksChange.to).toBe('Unlimited');
+      const membersChange = comparison.limitChanges.find((c) => c.name === 'Team Members');
+      if (membersChange) {
+        expect(membersChange.to).toBe('Unlimited');
       }
     });
 
     it('should throw for invalid tier names', () => {
-      expect(() => pricingService.compareTiers('invalid', 'team')).toThrow('Invalid tier name');
+      expect(() => pricingService.compareTiers('invalid', 'enterprise')).toThrow('Invalid tier name');
       expect(() => pricingService.compareTiers('free', 'invalid')).toThrow('Invalid tier name');
     });
   });
 
   describe('Feature progression across tiers', () => {
-    it('should have more features in higher tiers', () => {
+    it('should have more features in enterprise than free', () => {
       const countFeatures = (tier: any) =>
         Object.values(tier.features).filter((v) => v === true).length;
 
       const freeCount = countFeatures(PRICING_TIERS.free);
-      const proCount = countFeatures(PRICING_TIERS.pro);
-      const teamCount = countFeatures(PRICING_TIERS.team);
-      const businessCount = countFeatures(PRICING_TIERS.business);
       const enterpriseCount = countFeatures(PRICING_TIERS.enterprise);
 
-      expect(proCount).toBeGreaterThan(freeCount);
-      expect(teamCount).toBeGreaterThan(proCount);
-      expect(businessCount).toBeGreaterThan(teamCount);
-      expect(enterpriseCount).toBeGreaterThanOrEqual(businessCount);
+      expect(enterpriseCount).toBeGreaterThan(freeCount);
     });
 
-    it('should have SSO only in business and enterprise', () => {
+    it('should have SSO only in enterprise', () => {
       expect(PRICING_TIERS.free.features.ssoSaml).toBe(false);
-      expect(PRICING_TIERS.pro.features.ssoSaml).toBe(false);
-      expect(PRICING_TIERS.team.features.ssoSaml).toBe(false);
-      expect(PRICING_TIERS.business.features.ssoSaml).toBe(true);
       expect(PRICING_TIERS.enterprise.features.ssoSaml).toBe(true);
     });
 
     it('should have dedicated CSM only in enterprise', () => {
       expect(PRICING_TIERS.free.features.dedicatedCsm).toBe(false);
-      expect(PRICING_TIERS.pro.features.dedicatedCsm).toBe(false);
-      expect(PRICING_TIERS.team.features.dedicatedCsm).toBe(false);
-      expect(PRICING_TIERS.business.features.dedicatedCsm).toBe(false);
       expect(PRICING_TIERS.enterprise.features.dedicatedCsm).toBe(true);
     });
   });

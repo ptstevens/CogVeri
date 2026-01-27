@@ -4,11 +4,10 @@ import { logger } from '../utils/logger';
 
 // ProfilingIntegration is optional - only load if available
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type IntegrationConstructor = new () => Sentry.Integration;
-let ProfilingIntegration: IntegrationConstructor | null = null;
+let ProfilingIntegration: (new () => unknown) | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ProfilingIntegration = require('@sentry/profiling-node').ProfilingIntegration as IntegrationConstructor;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access
+  ProfilingIntegration = require('@sentry/profiling-node').ProfilingIntegration;
 } catch {
   // Profiling not available - this is fine for production
 }
@@ -74,7 +73,7 @@ export const initSentry = (): void => {
         new Sentry.Integrations.Postgres(),
 
         // Profiling integration for performance insights (if available)
-        ...(ProfilingIntegration ? [new ProfilingIntegration()] : [] as Sentry.Integration[]),
+        ...(ProfilingIntegration ? [new ProfilingIntegration()] : []),
       ],
 
       // Error filtering

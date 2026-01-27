@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { permissionsService, ROLE_PERMISSIONS } from '../../../src/services/permissions.service';
 import { db } from '../../../src/config/database';
 
@@ -17,29 +17,49 @@ describe('PermissionsService', () => {
 
   describe('getUserRole', () => {
     it('should return the user role from the database', async () => {
-      // Mock db response
-      const mockQuery = {
+      // The implementation checks:
+      // 1. users table for is_system_admin
+      // 2. organization_members table for role
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({ org_role: 'admin' }),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
+
+      // First call: users table returns non-admin user
+      // Second call: organization_members returns role
+      let callCount = 0;
+      (db as unknown as any).mockImplementation((table: string) => {
+        callCount++;
+        if (table === 'users') {
+          return createMockQuery({ is_system_admin: false, org_role: null, organization_id: mockOrgId });
+        }
+        if (table === 'organization_members') {
+          return createMockQuery({ role: 'admin' });
+        }
+        return createMockQuery(null);
+      });
 
       const role = await permissionsService.getUserRole(mockUserId, mockOrgId);
 
       expect(db).toHaveBeenCalledWith('users');
-      expect(mockQuery.where).toHaveBeenCalledWith('id', mockUserId);
-      expect(mockQuery.where).toHaveBeenCalledWith('organization_id', mockOrgId);
+      // Role is returned uppercased
       expect(role).toBe('ADMIN');
     });
 
     it('should return null if user not found', async () => {
-      const mockQuery = {
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue(undefined),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
+
+      (db as unknown as any).mockImplementation((table: string) => {
+        if (table === 'users') {
+          return createMockQuery(null);
+        }
+        return createMockQuery(null);
+      });
 
       const role = await permissionsService.getUserRole(mockUserId, mockOrgId);
       expect(role).toBeNull();
@@ -48,13 +68,22 @@ describe('PermissionsService', () => {
 
   describe('hasPermission', () => {
     it('should return true if user has the permission', async () => {
-      // Mock user as OWNER
-      const mockQuery = {
+      // Mock user as OWNER via organization_members
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({ org_role: 'owner' }),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
+
+      (db as unknown as any).mockImplementation((table: string) => {
+        if (table === 'users') {
+          return createMockQuery({ is_system_admin: false, org_role: null, organization_id: mockOrgId });
+        }
+        if (table === 'organization_members') {
+          return createMockQuery({ role: 'owner' });
+        }
+        return createMockQuery(null);
+      });
 
       // Owners have 'org:delete'
       const result = await permissionsService.hasPermission(mockUserId, mockOrgId, 'org:delete');
@@ -62,13 +91,22 @@ describe('PermissionsService', () => {
     });
 
     it('should return false if user does NOT have the permission', async () => {
-      // Mock user as MEMBER
-      const mockQuery = {
+      // Mock user as MEMBER via organization_members
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({ org_role: 'member' }),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
+
+      (db as unknown as any).mockImplementation((table: string) => {
+        if (table === 'users') {
+          return createMockQuery({ is_system_admin: false, org_role: null, organization_id: mockOrgId });
+        }
+        if (table === 'organization_members') {
+          return createMockQuery({ role: 'member' });
+        }
+        return createMockQuery(null);
+      });
 
       // Members do NOT have 'org:delete'
       const result = await permissionsService.hasPermission(mockUserId, mockOrgId, 'org:delete');
@@ -78,27 +116,45 @@ describe('PermissionsService', () => {
 
   describe('hasRole', () => {
     it('should return true if user has higher or equal role (Hierarchy)', async () => {
-      // User is ADMIN
-      const mockQuery = {
+      // User is ADMIN via organization_members
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({ org_role: 'admin' }),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
 
-      // ADMIN >= MEMBER ? Yes
-      const result = await permissionsService.hasRole(mockUserId, mockOrgId, 'MEMBER');
+      (db as unknown as any).mockImplementation((table: string) => {
+        if (table === 'users') {
+          return createMockQuery({ is_system_admin: false, org_role: null, organization_id: mockOrgId });
+        }
+        if (table === 'organization_members') {
+          return createMockQuery({ role: 'admin' });
+        }
+        return createMockQuery(null);
+      });
+
+      // ADMIN >= VIEWER ? Yes (4 >= 1)
+      const result = await permissionsService.hasRole(mockUserId, mockOrgId, 'VIEWER');
       expect(result).toBe(true);
     });
 
     it('should return false if user has lower role', async () => {
-      // User is MEMBER
-      const mockQuery = {
+      // User is VIEWER via organization_members
+      const createMockQuery = (result: any) => ({
         where: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue({ org_role: 'member' }),
-      };
-      (db as unknown as any).mockReturnValue(mockQuery);
+        first: vi.fn().mockResolvedValue(result),
+      });
+
+      (db as unknown as any).mockImplementation((table: string) => {
+        if (table === 'users') {
+          return createMockQuery({ is_system_admin: false, org_role: null, organization_id: mockOrgId });
+        }
+        if (table === 'organization_members') {
+          return createMockQuery({ role: 'viewer' });
+        }
+        return createMockQuery(null);
+      });
 
       // MEMBER >= ADMIN ? No
       const result = await permissionsService.hasRole(mockUserId, mockOrgId, 'ADMIN');

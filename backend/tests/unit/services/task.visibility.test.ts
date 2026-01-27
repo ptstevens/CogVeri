@@ -31,12 +31,13 @@ describe('TaskService Visibility', () => {
     mockDb = db();
   });
 
-  it('should NOT filter by user for ADMIN role', async () => {
+  it('should NOT filter by user for ADMIN role with scope=all', async () => {
     const userId = 'user-123';
     const userRole = 'ADMIN';
     const orgId = 'org-123';
 
-    await taskService.getTasks(userId, userRole, {}, {}, orgId);
+    // Admin must explicitly request scope: 'all' to see all org tasks
+    await taskService.getTasks(userId, userRole, { scope: 'all' }, {}, orgId);
 
     // Verify organization filter is applied
     expect(mockDb.where).toHaveBeenCalledWith('tasks.organization_id', orgId);
@@ -47,12 +48,13 @@ describe('TaskService Visibility', () => {
     expect(functionArgs.length).toBe(0);
   });
 
-  it('should NOT filter by user for OWNER role', async () => {
+  it('should NOT filter by user for OWNER role with scope=all', async () => {
     const userId = 'user-123';
     const userRole = 'OWNER';
     const orgId = 'org-123';
 
-    await taskService.getTasks(userId, userRole, {}, {}, orgId);
+    // Owner must explicitly request scope: 'all' to see all org tasks
+    await taskService.getTasks(userId, userRole, { scope: 'all' }, {}, orgId);
 
     const whereCalls = (mockDb.where as any).mock.calls;
     const functionArgs = whereCalls.filter((call) => typeof call[0] === 'function');

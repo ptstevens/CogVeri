@@ -151,7 +151,7 @@ import {
 let app: any;
 
 // Mock the JWT service to control token generation
-vi.mock('../../../src/services/jwt-service', () => ({
+vi.mock('../../../src/services/jwt.service', () => ({
   jwtService: {
     generateAccessToken: vi.fn().mockResolvedValue('mock-access-token'),
     generateRefreshToken: vi.fn().mockReturnValue('mock-refresh-token'),
@@ -209,7 +209,7 @@ describe('Auth API Routes', () => {
   const userId = '650e8400-e29b-41d4-a716-446655440001';
 
   let userService: typeof import('../../../src/services/user.service').default;
-  let jwtService: typeof import('../../../src/services/jwt-service').jwtService;
+  let jwtService: typeof import('../../../src/services/jwt.service').jwtService;
   let googleOAuthService: typeof import('../../../src/services/google-oauth.service').googleOAuthService;
 
   beforeEach(async () => {
@@ -218,7 +218,7 @@ describe('Auth API Routes', () => {
     const indexModule = await import('../../../src/index');
     app = indexModule.app;
     userService = (await import('../../../src/services/user.service')).default;
-    jwtService = (await import('../../../src/services/jwt-service')).jwtService;
+    jwtService = (await import('../../../src/services/jwt.service')).jwtService;
     googleOAuthService = (await import('../../../src/services/google-oauth.service')).googleOAuthService;
   });
 
@@ -563,7 +563,8 @@ describe('Auth API Routes', () => {
 
       if (res.status === 200) {
         expect(res.body).toHaveProperty('token');
-        expect(res.body).toHaveProperty('refreshToken');
+        // refreshToken is sent as HttpOnly cookie for XSS protection, not in body
+        expect(res.headers['set-cookie']).toBeDefined();
         expect(res.body).toHaveProperty('user');
         expect(res.body.message).toBe('Login successful');
       }
@@ -688,12 +689,13 @@ describe('Auth API Routes', () => {
   });
 
   describe('POST /api/auth/refresh', () => {
-    it('should return 400 without refresh token', async () => {
+    it('should return 400 or 401 without refresh token', async () => {
       const res = await request(app)
         .post('/api/auth/refresh')
         .send({});
 
-      expect([400, 500]).toContain(res.status);
+      // 400 Bad Request or 401 Unauthorized are both valid responses for missing token
+      expect([400, 401]).toContain(res.status);
     });
 
     it('should refresh tokens with valid refresh token', async () => {
@@ -826,7 +828,8 @@ describe('Auth API Routes', () => {
 
       if (res.status === 200) {
         expect(res.body).toHaveProperty('token');
-        expect(res.body).toHaveProperty('refreshToken');
+        // refreshToken is sent as HttpOnly cookie for XSS protection, not in body
+        expect(res.headers['set-cookie']).toBeDefined();
         expect(res.body).toHaveProperty('user');
       }
     });

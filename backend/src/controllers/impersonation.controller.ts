@@ -24,7 +24,7 @@ export const startImpersonation = async (req: EnhancedAuthRequest, res: Response
     }
 
     // Verify actor has permission (OWNER/ADMIN in this org)
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can impersonate users' });
       return;
     }
@@ -209,7 +209,7 @@ export const getImpersonationAudit = async (req: EnhancedAuthRequest, res: Respo
     }
 
     // Verify permissions
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can view impersonation audit logs' });
       return;
     }

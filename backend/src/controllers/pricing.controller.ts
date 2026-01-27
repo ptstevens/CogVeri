@@ -124,7 +124,7 @@ export const upgradeOrganization = async (
       throw new UnauthorizedError('Organization context required');
     }
 
-    if (req.user.org_role !== 'OWNER') {
+    if (req.user.org_role !== 'owner') {
       throw new UnauthorizedError('Only organization owners can upgrade subscription');
     }
 

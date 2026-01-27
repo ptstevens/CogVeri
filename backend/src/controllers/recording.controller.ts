@@ -93,7 +93,7 @@ export const getRecordings = async (req: AuthenticatedRequest, res: Response, ne
     };
 
     // Non-admin users can only see their own recordings unless viewing by task_id
-    if (!filters.task_id && req.user!.org_role !== 'OWNER' && req.user!.org_role !== 'ADMIN') {
+    if (!filters.task_id && req.user!.org_role !== 'owner' && req.user!.org_role !== 'admin') {
       filters.user_id = req.user!.id;
     }
 
@@ -139,7 +139,7 @@ export const getRecording = async (req: AuthenticatedRequest, res: Response, nex
     // 2. User is admin/owner
     // 3. User is assigned to the task
     // 4. User is reviewer for the task
-    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'OWNER' && req.user!.org_role !== 'ADMIN') {
+    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'owner' && req.user!.org_role !== 'admin') {
       // Check if user has access to the task (reviewer or assignee)
       const { db } = await import('../config/database');
       const task = await db('tasks').where('id', recording.task_id).first();
@@ -189,7 +189,7 @@ export const getRecordingPlaybackUrl = async (req: AuthenticatedRequest, res: Re
     // 2. User is admin
     // 3. User is assigned to the task
     // 4. User is reviewer for the task
-    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'OWNER' && req.user!.org_role !== 'ADMIN') {
+    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'owner' && req.user!.org_role !== 'admin') {
       // Check if user has access to the task (reviewer or assignee)
       const { db } = await import('../config/database');
       const task = await db('tasks').where('id', recording.task_id).first();
@@ -332,7 +332,7 @@ export const refreshDuration = async (req: AuthenticatedRequest, res: Response, 
 
     // Allow access if user is part of the organization
     // (same access rules as getRecording - owner, admin, assignee, or reviewer)
-    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'OWNER' && req.user!.org_role !== 'ADMIN') {
+    if (recording.user_id !== req.user!.id && req.user!.org_role !== 'owner' && req.user!.org_role !== 'admin') {
       const { db } = await import('../config/database');
       const task = await db('tasks').where('id', recording.task_id).first();
 

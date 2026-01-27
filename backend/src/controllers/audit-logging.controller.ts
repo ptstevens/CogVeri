@@ -15,7 +15,7 @@ export const getAuditLogs = async (req: EnhancedAuthRequest, res: Response): Pro
     }
 
     // Verify permissions (should already be checked by middleware)
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can view audit logs' });
       return;
     }
@@ -54,7 +54,7 @@ export const getAuditLogDetail = async (req: EnhancedAuthRequest, res: Response)
       return;
     }
 
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can view audit logs' });
       return;
     }
@@ -81,7 +81,7 @@ export const getAuditStatistics = async (req: EnhancedAuthRequest, res: Response
       return;
     }
 
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can view audit logs' });
       return;
     }
@@ -134,7 +134,7 @@ export const exportAuditLogs = async (req: EnhancedAuthRequest, res: Response): 
       return;
     }
 
-    if (!['OWNER', 'ADMIN'].includes(req.user.org_role)) {
+    if (!['owner', 'admin'].includes(req.user.org_role)) {
       res.status(403).json({ error: 'Only OWNER/ADMIN can export audit logs' });
       return;
     }

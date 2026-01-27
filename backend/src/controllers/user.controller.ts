@@ -105,7 +105,7 @@ export const getUser = async (req: AuthenticatedRequest, res: Response, next: Ne
     }
 
     // For viewing other users, must be MANAGER/ADMIN/OWNER
-    if (!['MANAGER', 'ADMIN', 'OWNER'].includes(req.user?.org_role || '')) {
+    if (!['manager', 'admin', 'owner'].includes(req.user?.org_role || '')) {
       throw new ForbiddenError('Access denied');
     }
 
@@ -157,7 +157,7 @@ export const updateUser = async (req: AuthenticatedRequest, res: Response, next:
     }
 
     // Only admins/owners can update other users
-    if (req.user?.org_role !== 'ADMIN' && req.user?.org_role !== 'OWNER') {
+    if (req.user?.org_role !== 'admin' && req.user?.org_role !== 'owner') {
       throw new ForbiddenError('Access denied');
     }
 

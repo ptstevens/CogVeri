@@ -17,6 +17,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { speechAnalysisService, SpeechAnalysisResult } from './speech-analysis.service';
 import { visualAnalysisService, VisualAnalysisResult } from './visual-analysis.service';
 import { frameExtractionService } from './frame-extraction.service';
+import { getNativeVideoAnalysisService } from './native-video-analysis.service';
 import {
   RubricStep,
   StepScoreResult,
@@ -30,6 +31,8 @@ export interface AnalysisOptions {
   skipSpeechAnalysis?: boolean;
   frameIntervalSeconds?: number;
   maxFrames?: number;
+  /** Use native video analysis instead of frame extraction (better accuracy, slightly higher cost) */
+  useNativeVideo?: boolean;
 }
 
 export interface FullAnalysisResult {
@@ -112,7 +115,7 @@ class AnalysisService {
     }
 
     // ============================================================
-    // STAGE 2: Frame Extraction & Visual Analysis
+    // STAGE 2: Visual Analysis (Native Video or Frame-based)
     // ============================================================
     let visualResults: VisualAnalysisResult[] = [];
     let frames: ExtractedFrame[] = [];
@@ -121,9 +124,10 @@ class AnalysisService {
       s => s.evidenceType === 'visual' || s.evidenceType === 'both'
     );
 
-    if (!options?.skipVisualAnalysis && hasVisualSteps && isGeminiConfigured()) {
-      await this.updateProgress(analysisJobId, 'extracting_frames', 40, 'Extracting keyframes...');
+    // Default to native video analysis for better accuracy (can be disabled via options)
+    const useNativeVideo = options?.useNativeVideo !== false;
 
+    if (!options?.skipVisualAnalysis && hasVisualSteps && isGeminiConfigured()) {
       // Get video URL - generate fresh signed URL if using S3
       let videoUrl = recording.file_url;
 
@@ -142,35 +146,80 @@ class AnalysisService {
       }
 
       if (videoUrl) {
-        try {
-          // Extract frames
-          const extractionResult = await frameExtractionService.extractFrames(
-            videoUrl,
-            analysisJobId,
-            organizationId,
-            {
-              frameIntervalSeconds: options?.frameIntervalSeconds ?? config.frameIntervalSeconds,
-              maxFrames: options?.maxFrames ?? config.maxFrames,
-            }
-          );
+        let nativeAnalysisFailed = false;
 
-          frames = extractionResult.frames;
+        // ============================================================
+        // Option A: Native Video Analysis (default - better accuracy)
+        // ============================================================
+        if (useNativeVideo) {
+          await this.updateProgress(analysisJobId, 'analyzing_visual', 40, 'Analyzing video with AI...');
 
-          await this.updateProgress(analysisJobId, 'analyzing_visual', 60, 'Analyzing frames...');
+          try {
+            logger.info(`Using native video analysis for recording ${recordingId}`);
+            const nativeVideoService = getNativeVideoAnalysisService();
+            const nativeResponse = await nativeVideoService.analyzeVideoFromUrl(
+              videoUrl,
+              rubricSteps,
+              recording.file_type || 'video/mp4'
+            );
 
-          // Analyze frames
-          const visualResponse = await visualAnalysisService.analyzeFrames(
-            frames,
-            rubricSteps
-          );
+            // Convert native results to visual results format
+            visualResults = nativeResponse.results.map(result => ({
+              stepId: result.stepId,
+              score: result.score,
+              confidence: result.confidence,
+              evidence: result.evidence,
+              reasoning: result.observation || 'Native video analysis',
+            }));
 
-          visualResults = visualResponse.results;
-          totalTokens.inputTokens += visualResponse.tokensUsed.inputTokens;
-          totalTokens.outputTokens += visualResponse.tokensUsed.outputTokens;
-          totalTokens.totalTokens += visualResponse.tokensUsed.totalTokens;
+            totalTokens.inputTokens += nativeResponse.tokensUsed.inputTokens;
+            totalTokens.outputTokens += nativeResponse.tokensUsed.outputTokens;
+            totalTokens.totalTokens += nativeResponse.tokensUsed.totalTokens;
 
-        } catch (error) {
-          logger.error('Visual analysis failed:', error);
+            logger.info(`Native video analysis complete for ${recordingId}: ${nativeResponse.processingTimeMs}ms`);
+
+          } catch (error) {
+            logger.error('Native video analysis failed, falling back to frame-based:', error);
+            nativeAnalysisFailed = true;
+          }
+        }
+
+        // ============================================================
+        // Option B: Frame-based Analysis (fallback or when native disabled)
+        // ============================================================
+        if (!useNativeVideo || nativeAnalysisFailed) {
+          await this.updateProgress(analysisJobId, 'extracting_frames', 40, 'Extracting keyframes...');
+
+          try {
+            // Extract frames
+            const extractionResult = await frameExtractionService.extractFrames(
+              videoUrl,
+              analysisJobId,
+              organizationId,
+              {
+                frameIntervalSeconds: options?.frameIntervalSeconds ?? config.frameIntervalSeconds,
+                maxFrames: options?.maxFrames ?? config.maxFrames,
+              }
+            );
+
+            frames = extractionResult.frames;
+
+            await this.updateProgress(analysisJobId, 'analyzing_visual', 60, 'Analyzing frames...');
+
+            // Analyze frames
+            const visualResponse = await visualAnalysisService.analyzeFrames(
+              frames,
+              rubricSteps
+            );
+
+            visualResults = visualResponse.results;
+            totalTokens.inputTokens += visualResponse.tokensUsed.inputTokens;
+            totalTokens.outputTokens += visualResponse.tokensUsed.outputTokens;
+            totalTokens.totalTokens += visualResponse.tokensUsed.totalTokens;
+
+          } catch (error) {
+            logger.error('Frame-based visual analysis failed:', error);
+          }
         }
       }
 
@@ -178,7 +227,7 @@ class AnalysisService {
         .where('id', analysisJobId)
         .update({
           visual_analysis_complete: true,
-          frames_analyzed: frames.length,
+          frames_analyzed: useNativeVideo ? 0 : frames.length, // Native video doesn't extract frames
           updated_at: new Date(),
         });
     } else {

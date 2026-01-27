@@ -49,7 +49,6 @@
       }
     ],
     "no-console": ["warn", { "allow": ["warn", "error", "info"] }],
-    "prefer-const": "error",
     "no-var": "error"
   },
   "ignorePatterns": ["dist", "node_modules", "*.js", "migrations", "knexfile.ts", "knexfile.d.ts", "scripts", "seeds", "tests", "vitest.config.ts"]

@@ -62,7 +62,7 @@ const createChainableMock = (resolvedValue: any) => {
   const builder: any = {};
   const chainMethods = [
     'select', 'where', 'andWhere', 'orWhere', 'whereNull', 'whereNotNull',
-    'orderBy', 'limit', 'offset', 'leftJoin', 'rightJoin', 'innerJoin',
+    'orderBy', 'orderByRaw', 'limit', 'offset', 'leftJoin', 'rightJoin', 'innerJoin',
     'join', 'distinct', 'clone', 'groupBy', 'having', 'modify', 'with'
   ];
   chainMethods.forEach(method => {

@@ -725,6 +725,8 @@ describe('TaskService', () => {
         builder.del = mockDel;
         builder.delete = mockDel;
         builder.first = vi.fn().mockResolvedValue(null);
+        // Make builder awaitable - returns empty array for recordings query
+        builder.then = vi.fn().mockImplementation((resolve: any) => resolve([]));
         return builder;
       };
 
@@ -758,6 +760,8 @@ describe('TaskService', () => {
         builder.del = vi.fn().mockResolvedValue(1);
         builder.delete = vi.fn().mockResolvedValue(1);
         builder.first = vi.fn().mockResolvedValue(null);
+        // Make builder awaitable - returns empty array for recordings query
+        builder.then = vi.fn().mockImplementation((resolve: any) => resolve([]));
         return builder;
       };
 

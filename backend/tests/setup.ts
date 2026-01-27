@@ -119,7 +119,7 @@ const createChainableQueryBuilder = () => {
   const chainMethods = [
     'where', 'whereNull', 'whereNotNull', 'whereRaw', 'whereIn',
     'andWhere', 'orWhere', 'select', 'distinct', 'sum', 'count',
-    'increment', 'orderBy', 'limit', 'offset', 'leftJoin',
+    'increment', 'orderBy', 'orderByRaw', 'limit', 'offset', 'leftJoin',
     'rightJoin', 'innerJoin', 'join', 'transacting', 'clone',
     'groupBy', 'having', 'modify', 'with', 'as'
   ];

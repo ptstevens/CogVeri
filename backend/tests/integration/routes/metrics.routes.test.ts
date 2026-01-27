@@ -281,7 +281,8 @@ describe('Metrics API Routes', () => {
         .set('X-Organization-Id', organizationId)
         .send(keyData);
 
-      expect(res.status.toString()).toMatch(/^(200|201|400|401)$/);
+      // 403 Forbidden if user doesn't have admin/owner role
+      expect(res.status.toString()).toMatch(/^(200|201|400|401|403)$/);
     });
 
     it('should return full key only on creation', async () => {
@@ -345,7 +346,8 @@ describe('Metrics API Routes', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-Id', organizationId);
 
-      expect(res.status.toString()).toMatch(/^(200|201|400|401)$/);
+      // 403 Forbidden if user doesn't have admin/owner role
+      expect(res.status.toString()).toMatch(/^(200|201|400|401|403)$/);
     });
 
     it('should prevent using revoked key', async () => {

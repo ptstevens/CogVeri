@@ -18,6 +18,24 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/cogveri_test';
 }
 
+// Default JWT secrets for testing (prevents app initialization failures)
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'test-jwt-secret-default';
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-default';
+}
+
+// Default CSRF secret for testing
+if (!process.env.CSRF_SECRET) {
+  process.env.CSRF_SECRET = 'test-csrf-secret-default';
+}
+
+// Enable site for testing (prevents 503 "coming soon" responses)
+if (!process.env.OPEN_FOR_BUSINESS) {
+  process.env.OPEN_FOR_BUSINESS = 'true';
+}
+
 // Mock logger to avoid console spam during tests
 // Note: We use importOriginal to preserve the redactSensitiveData function for testing
 vi.mock('../src/utils/logger', async (importOriginal) => {

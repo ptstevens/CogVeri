@@ -12,11 +12,12 @@ const ProtectedRoute = memo(({ children, requiredRoles }: ProtectedRouteProps) =
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  // Show loading when:
-  // 1. Auth is still loading (initial check in progress)
+  // Show loading when user data is not yet available:
+  // 1. Auth is still loading AND we don't have user data yet
   // 2. We think we're authenticated but user data hasn't loaded yet
   //    (prevents race condition where pages render before user is ready)
-  if (isLoading || (isAuthenticated && !user)) {
+  // If user data exists, skip spinner even if isLoading is true (e.g., during navigation)
+  if (!user && (isLoading || isAuthenticated)) {
     return <LoadingSpinner fullScreen message="Loading..." />;
   }
 

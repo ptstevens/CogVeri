@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { permissionsService, ROLE_PERMISSIONS } from '../../../src/services/permissions-service';
+import { permissionsService, ROLE_PERMISSIONS } from '../../../src/services/permissions.service';
 import { db } from '../../../src/config/database';
 
 // Mock the database

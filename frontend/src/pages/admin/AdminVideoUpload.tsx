@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, Search, AlertCircle, CheckCircle, Video, RefreshCw } from 'lucide-react';
+import { Upload, Search, AlertCircle, CheckCircle, Video, RefreshCw, Bell } from 'lucide-react';
 import { AxiosError } from 'axios';
 import api from '../../services/api';
 import { AdminService } from '../../services/admin.service';
+import Modal from '../../components/ui/Modal';
 
 // Sanitize error messages to prevent information leakage
 function sanitizeErrorMessage(message: string): string {
@@ -116,6 +117,7 @@ export default function AdminVideoUpload() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search
@@ -227,6 +229,7 @@ export default function AdminVideoUpload() {
       });
 
       setUploadSuccess('Video uploaded successfully! Transcription and analysis jobs have been queued.');
+      setShowConfirmationModal(true);
 
       // Clear selected task (it's now "submitted" and no longer eligible)
       setSelectedTaskId(null);
@@ -575,6 +578,32 @@ export default function AdminVideoUpload() {
           </div>
         </div>
       </div>
+
+      {/* Processing Confirmation Modal */}
+      <Modal
+        isOpen={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        title="Video Processing Started"
+        size="sm"
+      >
+        <div className="text-center py-4">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+            <Bell className="h-6 w-6 text-blue-600" />
+          </div>
+          <p className="text-gray-600 mb-4">
+            Your video has been uploaded and is now being processed. This includes transcription, thumbnail generation, and analysis.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            You will receive a notification when processing is complete.
+          </p>
+          <button
+            onClick={() => setShowConfirmationModal(false)}
+            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+          >
+            Got it
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -118,6 +118,7 @@ export default function AdminVideoUpload() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(true); // Default to replace for backwards compatibility
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search
@@ -214,6 +215,7 @@ export default function AdminVideoUpload() {
 
     const formData = new FormData();
     formData.append('video', file);
+    formData.append('replaceExisting', replaceExisting.toString());
 
     try {
       await api.post(`/admin/video-upload/tasks/${selectedTaskId}/upload`, formData, {
@@ -259,7 +261,7 @@ export default function AdminVideoUpload() {
         fileInputRef.current.value = '';
       }
     }
-  }, [selectedTaskId, selectedOrgId, debouncedSearch, page]);
+  }, [selectedTaskId, selectedOrgId, debouncedSearch, page, replaceExisting]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -477,22 +479,28 @@ export default function AdminVideoUpload() {
                   </span>
                 </div>
 
-                {/* Existing Recording Warning */}
+                {/* Existing Recording Info & Replace Toggle */}
                 {taskDetails.has_recording && taskDetails.existing_recording && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className={`border rounded-lg p-4 ${replaceExisting ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-800">
-                          Existing recording will be replaced
+                      <AlertCircle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${replaceExisting ? 'text-amber-600' : 'text-blue-600'}`} />
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${replaceExisting ? 'text-amber-800' : 'text-blue-800'}`}>
+                          {replaceExisting ? 'Existing recording will be replaced' : 'New recording will be added (history preserved)'}
                         </p>
-                        <p className="text-xs text-amber-700 mt-1">
-                          Status: {taskDetails.existing_recording.status}
-                          <br />
-                          Size: {formatFileSize(taskDetails.existing_recording.file_size_bytes)}
-                          <br />
-                          Created: {formatDate(taskDetails.existing_recording.created_at)}
+                        <p className={`text-xs mt-1 ${replaceExisting ? 'text-amber-700' : 'text-blue-700'}`}>
+                          Existing: {taskDetails.existing_recording.status} • {formatFileSize(taskDetails.existing_recording.file_size_bytes)} • {formatDate(taskDetails.existing_recording.created_at)}
                         </p>
+                        {/* Replace Toggle */}
+                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={replaceExisting}
+                            onChange={(e) => setReplaceExisting(e.target.checked)}
+                            className="w-4 h-4 text-primary-600 bg-white border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-xs text-gray-700">Replace existing recordings</span>
+                        </label>
                       </div>
                     </div>
                   </div>

@@ -48,6 +48,12 @@ export interface InvitationResult {
   invitedBy: string;
 }
 
+export interface AcceptInvitationResult {
+  organizationId: string;
+  organizationName: string;
+  role: string;
+}
+
 export interface RoleChangeResult {
   userId: string;
   email: string;
@@ -397,7 +403,7 @@ class OrganizationMemberService {
    * allowing the invitation acceptance to work even when called
    * from public (unauthenticated) registration endpoints.
    */
-  async acceptInvitation(invitationToken: string, userId: string): Promise<void> {
+  async acceptInvitation(invitationToken: string, userId: string): Promise<AcceptInvitationResult> {
     try {
       // Use the SECURITY DEFINER function to bypass RLS for invitation acceptance
       // This function validates, creates membership, updates invitation, and logs audit
@@ -412,6 +418,13 @@ class OrganizationMemberService {
       if (!data || !data.success) {
         throw new Error(data?.error || 'Failed to accept invitation');
       }
+
+      // Extract organization info to return
+      const invitationResult: AcceptInvitationResult = {
+        organizationId: data.organizationId,
+        organizationName: data.organizationName,
+        role: data.role,
+      };
 
       // Get user details for welcome email (this is safe, users table doesn't have org RLS)
       const user = await db('users').where('id', userId).first();
@@ -469,6 +482,8 @@ class OrganizationMemberService {
         subject: `🎊 Welcome to ${data.organizationName}!`,
         html: welcomeHtml,
       });
+
+      return invitationResult;
     } catch (error) {
       throw error;
     }

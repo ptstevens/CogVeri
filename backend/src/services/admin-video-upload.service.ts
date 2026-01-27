@@ -257,14 +257,16 @@ class AdminVideoUploadService {
   /**
    * Upload video to a task
    * - Validates task eligibility
-   * - Deletes existing recordings (hard delete)
+   * - Optionally deletes existing recordings (hard delete) based on replaceExisting flag
    * - Creates new recording with sysadmin metadata
    * - Queues transcription, thumbnail, transcode jobs
+   * @param replaceExisting - If true, deletes all existing recordings before upload (default: true for backwards compatibility)
    */
   async uploadVideoToTask(
     taskId: string,
     file: MulterFile,
-    sysadminUserId: string
+    sysadminUserId: string,
+    replaceExisting: boolean = true
   ): Promise<UploadResult> {
     // Get task details
     const task = await db('tasks as t')
@@ -295,10 +297,13 @@ class AdminVideoUploadService {
       mimeType: file.mimetype,
     });
 
-    // Delete all existing recordings for this task (hard delete including S3 files)
-    await recordingService.hardDeleteAllRecordingsForTask(taskId);
-
-    logger.info('Deleted existing recordings for task', { taskId });
+    // Optionally delete existing recordings based on replaceExisting flag
+    if (replaceExisting) {
+      await recordingService.hardDeleteAllRecordingsForTask(taskId);
+      logger.info('Deleted existing recordings for task', { taskId });
+    } else {
+      logger.info('Adding new recording to task (preserving existing)', { taskId });
+    }
 
     // Create new recording entry with sysadmin metadata
     const recording = await recordingService.createRecording(

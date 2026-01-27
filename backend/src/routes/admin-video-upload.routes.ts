@@ -256,6 +256,10 @@ router.post(
 
       const sysadminUserId = req.user!.id;
 
+      // Parse replaceExisting from body (default true for backwards compatibility)
+      // Note: multipart form data sends strings, so we need to handle "false" string
+      const replaceExisting = req.body.replaceExisting !== 'false' && req.body.replaceExisting !== false;
+
       logger.info('Admin starting video upload to task', {
         adminUserId: sysadminUserId,
         taskId,
@@ -263,12 +267,14 @@ router.post(
         mimeType: req.file.mimetype,
         originalName: req.file.originalname,
         tempPath: tempFilePath,
+        replaceExisting,
       });
 
       const result = await adminVideoUploadService.uploadVideoToTask(
         taskId,
         req.file,
-        sysadminUserId
+        sysadminUserId,
+        replaceExisting
       );
 
       res.status(201).json({

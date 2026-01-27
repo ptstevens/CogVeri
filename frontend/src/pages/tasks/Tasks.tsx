@@ -231,6 +231,7 @@ interface ListViewProps {
   onDelete: (taskId: string) => void;
   onViewDetails: (taskId: string) => void;
   userId?: string;
+  isAdmin?: boolean;
 }
 
 const ListView = React.memo(
@@ -241,6 +242,7 @@ const ListView = React.memo(
     onDelete,
     onViewDetails,
     userId,
+    isAdmin,
   }: ListViewProps) => (
     <div className="space-y-4">
       {tasks?.map((task) => (
@@ -251,7 +253,7 @@ const ListView = React.memo(
           onStatusChange={onStatusChange}
           onDelete={onDelete}
           onViewDetails={onViewDetails}
-          canEdit={task.created_by === userId}
+          canEdit={isAdmin || task.created_by === userId}
         />
       ))}
     </div>
@@ -269,6 +271,7 @@ interface KanbanColumnProps {
   onDelete: (taskId: string) => void;
   onViewDetails: (taskId: string) => void;
   userId?: string;
+  isAdmin?: boolean;
   statusColor: string;
 }
 
@@ -281,6 +284,7 @@ const KanbanColumn = React.memo(
     onDelete,
     onViewDetails,
     userId,
+    isAdmin,
     statusColor,
   }: KanbanColumnProps) => (
     <div className="bg-gray-50 rounded-lg p-4 min-h-[500px] min-w-[280px] flex-shrink-0 snap-start">
@@ -302,7 +306,7 @@ const KanbanColumn = React.memo(
             onStatusChange={onStatusChange}
             onDelete={onDelete}
             onViewDetails={onViewDetails}
-            canEdit={task.created_by === userId}
+            canEdit={isAdmin || task.created_by === userId}
           />
         ))}
       </div>
@@ -332,6 +336,7 @@ interface KanbanViewProps {
   onDelete: (taskId: string) => void;
   onViewDetails: (taskId: string) => void;
   userId?: string;
+  isAdmin?: boolean;
 }
 
 const KanbanView = React.memo(
@@ -343,6 +348,7 @@ const KanbanView = React.memo(
     onDelete,
     onViewDetails,
     userId,
+    isAdmin,
   }: KanbanViewProps) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [activeColumn, setActiveColumn] = useState(0);
@@ -437,6 +443,7 @@ const KanbanView = React.memo(
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               userId={userId}
+              isAdmin={isAdmin}
               statusColor="bg-gray-400"
             />
             <KanbanColumn
@@ -447,6 +454,7 @@ const KanbanView = React.memo(
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               userId={userId}
+              isAdmin={isAdmin}
               statusColor="bg-blue-500"
             />
             <KanbanColumn
@@ -457,6 +465,7 @@ const KanbanView = React.memo(
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               userId={userId}
+              isAdmin={isAdmin}
               statusColor="bg-purple-500"
             />
             <KanbanColumn
@@ -467,6 +476,7 @@ const KanbanView = React.memo(
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               userId={userId}
+              isAdmin={isAdmin}
               statusColor="bg-green-500"
             />
           </div>
@@ -935,6 +945,7 @@ const Tasks: React.FC = () => {
           onDelete={handleDeleteTask}
           onViewDetails={handleViewDetails}
           userId={user?.id}
+          isAdmin={isAdmin}
         />
       ) : (
         <KanbanView
@@ -945,6 +956,7 @@ const Tasks: React.FC = () => {
           onDelete={handleDeleteTask}
           onViewDetails={handleViewDetails}
           userId={user?.id}
+          isAdmin={isAdmin}
         />
       )}
 

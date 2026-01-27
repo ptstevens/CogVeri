@@ -244,26 +244,30 @@ class TaskController {
       const organizationId = requireOrganizationId((req as any).user?.org_id);
       const scope = req.query.scope as 'mine' | 'all' | undefined;
 
-      const [pending, inProgress, completed, reviewed] = await Promise.all([
-        taskService.getTasks(userId, userRole, { status: 'pending', scope }, undefined, organizationId),
-        taskService.getTasks(
-          userId,
-          userRole,
-          { status: 'in_progress', scope },
-          undefined,
-          organizationId
-        ),
+      // Fetch all statuses needed for kanban view
+      const [draft, assigned, inProgress, submitted, inReview, completed, rejected] = await Promise.all([
+        taskService.getTasks(userId, userRole, { status: 'draft', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'assigned', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'in_progress', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'submitted', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'in_review', scope }, undefined, organizationId),
         taskService.getTasks(userId, userRole, { status: 'completed', scope }, undefined, organizationId),
-        taskService.getTasks(userId, userRole, { status: 'reviewed', scope }, undefined, organizationId),
+        taskService.getTasks(userId, userRole, { status: 'rejected', scope }, undefined, organizationId),
       ]);
 
       res.json({
         success: true,
         data: {
-          pending,
+          draft,
+          assigned,
           in_progress: inProgress,
+          submitted,
+          in_review: inReview,
           completed,
-          reviewed,
+          rejected,
+          // Legacy aliases for backwards compatibility
+          pending: assigned,
+          reviewed: completed,
         },
       });
     } catch (error) {

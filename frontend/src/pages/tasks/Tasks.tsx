@@ -678,8 +678,10 @@ const Tasks: React.FC = () => {
     urlScope === 'all' ? 'all' : 'mine'
   );
 
-  // Check if user is admin (OWNER or ADMIN role)
-  const isAdmin = user?.org_role === 'OWNER' || user?.org_role === 'ADMIN';
+  // Check if user is admin (OWNER or ADMIN role, or system admin)
+  const isAdmin = user?.org_role?.toUpperCase() === 'OWNER' ||
+                  user?.org_role?.toUpperCase() === 'ADMIN' ||
+                  user?.is_system_admin === true;
 
   // Update URL when filter changes (for shareable links)
   const handleFilterChange = useCallback((newFilter: FilterStatus) => {

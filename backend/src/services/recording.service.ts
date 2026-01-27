@@ -485,7 +485,11 @@ class RecordingService {
       }
 
       if (filters?.status) {
+        // If specific status requested, use it
         query = query.where('status', filters.status);
+      } else {
+        // By default, exclude deleted recordings (consistent with getTaskRecordings)
+        query = query.where('status', '!=', 'deleted');
       }
 
       if (filters?.type) {

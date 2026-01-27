@@ -317,7 +317,10 @@ describe('Tasks Page', () => {
       await user.selectOptions(statusFilter, 'pending');
 
       await waitFor(() => {
-        expect(mockGetTasks).toHaveBeenCalledWith({ status: 'pending' });
+        // Component passes both status and scope (defaults to 'mine')
+        expect(mockGetTasks).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'pending' })
+        );
       });
     });
   });
@@ -350,21 +353,20 @@ describe('Tasks Page', () => {
       await user.click(actionButtons[0]);
 
       await waitFor(() => {
-        expect(screen.getByRole('menuitem', { name: /view details/i })).toBeInTheDocument();
+        // Menu shows Edit Task for tasks created by current user
+        expect(screen.getByRole('menuitem', { name: /edit task/i })).toBeInTheDocument();
       });
     });
 
-    it('navigates to task details when view details is clicked', async () => {
+    it('navigates to task details when task card is clicked', async () => {
       const { user } = renderTasks();
 
       await waitFor(() => {
         expect(screen.getByText('Task One')).toBeInTheDocument();
       });
 
-      const actionButtons = screen.getAllByRole('button', { name: /task actions/i });
-      await user.click(actionButtons[0]);
-
-      await user.click(screen.getByRole('menuitem', { name: /view details/i }));
+      // Click on the task card title to navigate (not a menu item)
+      await user.click(screen.getByText('Task One'));
 
       expect(mockNavigate).toHaveBeenCalledWith('/tasks/task-1');
     });

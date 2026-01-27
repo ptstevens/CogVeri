@@ -43,11 +43,11 @@ describe('MagicLinkService', () => {
   const contributorId = 'a50e8400-e29b-41d4-a716-446655440005';
   const userId = '650e8400-e29b-41d4-a716-446655440001';
 
-  let magicLinkService: typeof import('../../../src/services/magicLink.service').default;
+  let magicLinkService: typeof import('../../../src/services/magic-link.service').default;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const module = await import('../../../src/services/magicLink.service');
+    const module = await import('../../../src/services/magic-link.service');
     magicLinkService = module.default;
   });
 

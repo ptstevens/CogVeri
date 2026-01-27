@@ -29,7 +29,7 @@ const registerSchema = z.object({
   organizationName: z.string().min(1, 'Organization name is required'),
   department: z.string().optional(),
   selectedTier: z.enum(['free', 'enterprise']).optional().default('free'),
-});;
+});
 
 const refreshSchema = z.object({
   // refreshToken in body is optional - we prefer HttpOnly cookie
@@ -399,7 +399,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     }
     next(error);
   }
-};;
+};
 
 // Helper: Extract domain from email, excluding public domains
 function extractDomainForOrgCheck(email: string): string | null {

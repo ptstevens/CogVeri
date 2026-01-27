@@ -221,7 +221,7 @@ export const PRICING_TIERS: Record<string, PricingTier> = {
     highlighted: false,
     ctaText: 'Contact Sales',
   },
-};;
+};
 
 // Database tier record type
 interface PricingTierRow {

@@ -37,7 +37,7 @@ jobs:
           docker save cogveri-backend:${{ github.sha }} > backend-image.tar
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-docker-image
           path: backend-image.tar
@@ -75,14 +75,14 @@ jobs:
           docker save cogveri-frontend:${{ github.sha }} > frontend-image.tar
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-docker-image
           path: frontend-image.tar
           retention-days: 7
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: ./frontend/dist

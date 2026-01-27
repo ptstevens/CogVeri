@@ -4,7 +4,7 @@
  * Analyzes transcripts against rubric speech criteria using Gemini AI.
  */
 
-import { getTextAnalysisModel, estimateCost, TokenUsage } from '../../config/gemini';
+import { getTextAnalysisModel, estimateCost, TokenUsage, type GenerativeModel } from '../../config/gemini';
 import { RubricStep, SpeechEvidence, StepScoreValue } from '../../queues/types/job-types';
 import { buildSpeechAnalysisPrompt } from './prompts/analysis.prompts';
 import { getSpeechAnalysisPrompt } from './prompts/prompt-resolver';
@@ -48,7 +48,15 @@ export interface SpeechAnalysisResponse {
  * Speech Analysis Service class
  */
 class SpeechAnalysisService {
-  private model = getTextAnalysisModel();
+  // Lazy-initialized to avoid errors during import when GEMINI_API_KEY is not set (e.g., in tests)
+  private _model: GenerativeModel | null = null;
+
+  private get model(): GenerativeModel {
+    if (!this._model) {
+      this._model = getTextAnalysisModel();
+    }
+    return this._model;
+  }
 
   /**
    * Analyze transcript against speech criteria in rubric steps

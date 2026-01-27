@@ -6,6 +6,9 @@
  */
 
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+
+// Re-export types for use in services
+export type { GenerativeModel };
 import { logger } from '../utils/logger';
 
 /**

@@ -35,7 +35,12 @@
     "@typescript-eslint/restrict-template-expressions": "warn",
     "@typescript-eslint/no-redundant-type-constituents": "warn",
     "@typescript-eslint/no-namespace": "warn",
+    "@typescript-eslint/ban-ts-comment": "warn",
     "no-empty": "warn",
+    "no-useless-escape": "warn",
+    "no-useless-catch": "warn",
+    "no-constant-condition": "warn",
+    "prefer-const": "warn",
     "@typescript-eslint/no-unused-vars": [
       "error",
       {

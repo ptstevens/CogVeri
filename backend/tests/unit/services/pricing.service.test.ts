@@ -53,12 +53,9 @@ describe('PricingService', () => {
   });
 
   describe('PRICING_TIERS', () => {
-    it('should have five pricing tiers defined', () => {
-      expect(Object.keys(PRICING_TIERS)).toHaveLength(5);
+    it('should have two pricing tiers defined (free and enterprise)', () => {
+      expect(Object.keys(PRICING_TIERS)).toHaveLength(2);
       expect(PRICING_TIERS).toHaveProperty('free');
-      expect(PRICING_TIERS).toHaveProperty('pro');
-      expect(PRICING_TIERS).toHaveProperty('team');
-      expect(PRICING_TIERS).toHaveProperty('business');
       expect(PRICING_TIERS).toHaveProperty('enterprise');
     });
 
@@ -69,12 +66,12 @@ describe('PricingService', () => {
       expect(freeTier.displayName).toBe('Free');
       expect(freeTier.monthlyPrice).toBe(0);
       expect(freeTier.yearlyPrice).toBe(0);
-      expect(freeTier.limits.maxMembers).toBe(1);
+      expect(freeTier.limits.maxMembers).toBe(2);
       expect(freeTier.limits.maxStorageGb).toBe(5);
-      expect(freeTier.limits.maxTasksPerMonth).toBe(10);
-      expect(freeTier.limits.maxVideosPerMonth).toBe(25);
+      expect(freeTier.limits.maxTasksPerMonth).toBe(-1); // unlimited
+      expect(freeTier.limits.maxVideosPerMonth).toBe(5);
       expect(freeTier.limits.maxVideoLengthMinutes).toBe(10);
-      expect(freeTier.limits.maxExternalContributors).toBe(5);
+      expect(freeTier.limits.maxExternalContributors).toBe(-1); // unlimited
       expect(freeTier.highlighted).toBe(false);
     });
 

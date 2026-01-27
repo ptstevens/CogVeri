@@ -122,7 +122,14 @@ describe('OrganizationMemberService Audit Logging', () => {
         return builder;
       });
 
-      await organizationMemberService.acceptInvitation(mockToken, mockUserId);
+      const result = await organizationMemberService.acceptInvitation(mockToken, mockUserId);
+
+      // Verify the return value contains organization info
+      expect(result).toEqual({
+        organizationId: mockOrgId,
+        organizationName: 'Test Org',
+        role: 'member',
+      });
 
       // Note: The db function uses SECURITY DEFINER function which handles audit logging
       // We just verify the email service was called

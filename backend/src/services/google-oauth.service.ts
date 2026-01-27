@@ -171,12 +171,13 @@ class GoogleOAuthService {
             if (googleUser.email.toLowerCase() === validationResult.invitation?.email.toLowerCase()) {
               // Accept the invitation
               try {
-                await organizationMemberService.acceptInvitation(invitationToken, user.id);
+                const acceptResult = await organizationMemberService.acceptInvitation(invitationToken, user.id);
                 logger.info(`Google OAuth: Existing user ${user.email} joined organization via invitation`);
 
-                // Refresh user data to get updated org info
+                // Use the returned organization data directly (more reliable than querying user.organization_id)
+                organization = await db('organizations').where('id', acceptResult.organizationId).first();
+                // Refresh user data
                 user = await db('users').where('id', user.id).first();
-                organization = await db('organizations').where('id', user.organization_id).first();
               } catch (inviteError: any) {
                 logger.error(`Google OAuth: Failed to accept invitation for existing user: ${inviteError.message}`);
                 // Continue with normal login flow if invitation acceptance fails
@@ -319,12 +320,13 @@ class GoogleOAuthService {
 
           // Now accept the invitation (outside transaction - it has its own)
           try {
-            await organizationMemberService.acceptInvitation(invitationToken, user.id);
+            const acceptResult = await organizationMemberService.acceptInvitation(invitationToken, user.id);
             logger.info(`Google OAuth: User ${user.email} joined organization via invitation`);
 
-            // Refresh user data to get org info
+            // Use the returned organization data directly (more reliable than querying user.organization_id)
+            organization = await db('organizations').where('id', acceptResult.organizationId).first();
+            // Refresh user data
             user = await db('users').where('id', user.id).first();
-            organization = await db('organizations').where('id', user.organization_id).first();
           } catch (inviteError: any) {
             logger.error(`Google OAuth: Failed to accept invitation: ${inviteError.message}`);
             // User was created but invitation failed - they'll need to accept manually

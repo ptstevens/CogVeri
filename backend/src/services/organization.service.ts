@@ -148,7 +148,7 @@ class OrganizationService {
       // This gives the org ownership of template copies they can edit/delete
       try {
         await taskTemplateService.copyAllSystemDefaultsToOrganization(
-          (organizationId as any).toString(),
+          (organizationId).toString(),
           input.ownerId
         );
         logger.info(`✅ System default templates copied to organization`);
@@ -168,7 +168,7 @@ class OrganizationService {
       }
 
       return {
-        id: (organizationId as any).toString(),
+        id: (organizationId).toString(),
         name: input.name,
         ownerId: input.ownerId
       };

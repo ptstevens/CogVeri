@@ -2,16 +2,6 @@ import * as Sentry from '@sentry/node';
 import { Express, Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 
-// ProfilingIntegration is optional - only load if available
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let ProfilingIntegration: (new () => unknown) | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access
-  ProfilingIntegration = require('@sentry/profiling-node').ProfilingIntegration;
-} catch {
-  // Profiling not available - this is fine for production
-}
-
 /**
  * Sentry Configuration for Backend
  *
@@ -72,9 +62,9 @@ export const initSentry = (): void => {
         // Database integration for PostgreSQL
         new Sentry.Integrations.Postgres(),
 
-        // Profiling integration for performance insights (if available)
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
-        ...(ProfilingIntegration ? [new ProfilingIntegration() as any] : []),
+        // Note: Profiling requires @sentry/profiling-node package (not currently installed)
+        // To enable profiling: npm install @sentry/profiling-node
+        // Then uncomment: new ProfilingIntegration()
       ],
 
       // Error filtering

@@ -755,7 +755,7 @@ class AdminController {
       const customFeatures: Record<string, boolean> = org.custom_features
         ? typeof org.custom_features === 'string'
           ? JSON.parse(org.custom_features) as Record<string, boolean>
-          : org.custom_features as Record<string, boolean>
+          : org.custom_features
         : {};
 
       // Get effective features
@@ -845,7 +845,7 @@ class AdminController {
       const currentCustomFeatures: Record<string, boolean> = org.custom_features
         ? typeof org.custom_features === 'string'
           ? JSON.parse(org.custom_features) as Record<string, boolean>
-          : org.custom_features as Record<string, boolean>
+          : org.custom_features
         : {};
 
       // Get valid feature names from tier

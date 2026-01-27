@@ -482,7 +482,7 @@ export class JWTService {
 
       // SECURITY: For regular users, verify they are a member of the target organization
       // Check organization_members table first (new model)
-      let membership = await db('organization_members')
+      const membership = await db('organization_members')
         .where('user_id', userId)
         .where('organization_id', targetOrgId)
         .where('status', 'active')

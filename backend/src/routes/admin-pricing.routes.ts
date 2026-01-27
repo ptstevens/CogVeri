@@ -196,7 +196,7 @@ router.put('/tiers/:tierName', async (req: EnhancedAuthRequest, res: Response): 
     const oldYearlyPrice = oldTier.yearlyPrice;
 
     // Update the tier in the database
-    let tier = await pricingService.updatePricingTier(tierName, validation.data);
+    const tier = await pricingService.updatePricingTier(tierName, validation.data);
 
     // Detect actual price changes
     const newMonthlyPrice = validation.data.monthlyPrice ?? oldMonthlyPrice;

@@ -73,7 +73,8 @@ export const initSentry = (): void => {
         new Sentry.Integrations.Postgres(),
 
         // Profiling integration for performance insights (if available)
-        ...(ProfilingIntegration ? [new ProfilingIntegration()] : []),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
+        ...(ProfilingIntegration ? [new ProfilingIntegration() as any] : []),
       ],
 
       // Error filtering

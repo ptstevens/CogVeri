@@ -36,6 +36,7 @@
     "@typescript-eslint/no-redundant-type-constituents": "warn",
     "@typescript-eslint/no-namespace": "warn",
     "@typescript-eslint/ban-ts-comment": "warn",
+    "@typescript-eslint/unbound-method": "warn",
     "no-empty": "warn",
     "no-useless-escape": "warn",
     "no-useless-catch": "warn",

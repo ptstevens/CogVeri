@@ -70,13 +70,13 @@ jobs:
           output: 'frontend-security-results.sarif'
 
       - name: Upload backend security results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'backend-security-results.sarif'
           category: 'backend-security'
 
       - name: Upload frontend security results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'frontend-security-results.sarif'
           category: 'frontend-security'

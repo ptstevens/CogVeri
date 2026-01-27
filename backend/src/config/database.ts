@@ -19,7 +19,16 @@ import { withTimeout } from '../utils/timeout';
  * 4. High concurrency: Handles 50+ simultaneous requests efficiently
  */
 // ★ Parse DATABASE_URL if provided, otherwise use individual connection variables
-let connectionConfig: any = {};
+interface ConnectionConfig {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  user?: string;
+  password?: string;
+  database?: string;
+  ssl?: { rejectUnauthorized: boolean } | false;
+}
+let connectionConfig: ConnectionConfig = {};
 
 if (process.env.DATABASE_URL) {
   // Use DATABASE_URL as primary source (this is what Coolify injects)
@@ -120,12 +129,13 @@ export const connectDatabase = async (): Promise<void> => {
     logger.info('Database connected successfully');
 
     // Log pool configuration for debugging
-    const pool = db.client.pool;
+    const pool = db.client.pool as { min?: number; max?: number; waitingCount?: number } | undefined;
     if (pool) {
       logger.info(`Database pool configured: min=${pool.min}, max=${pool.max}, waiting=${pool.waitingCount}`);
     }
-  } catch (error: any) {
-    if (error.name === 'TimeoutError') {
+  } catch (error: unknown) {
+    const err = error as Error & { name?: string };
+    if (err.name === 'TimeoutError') {
       logger.error(`Database connection timed out after ${connectionTimeout}ms`);
     } else {
       logger.error('Database connection failed:', error);

@@ -90,8 +90,9 @@ export const closeRedis = async (): Promise<void> => {
       );
       redisClient = null;
       logger.info('Redis connection closed successfully');
-    } catch (error: any) {
-      if (error.name === 'TimeoutError') {
+    } catch (error: unknown) {
+      const err = error as Error & { name?: string };
+      if (err.name === 'TimeoutError') {
         logger.warn('Redis close timed out, forcing disconnect');
         redisClient?.disconnect();
         redisClient = null;

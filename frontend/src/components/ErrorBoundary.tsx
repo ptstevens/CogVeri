@@ -334,7 +334,7 @@ export const PageErrorBoundary: React.FC<{ children: ReactNode }> = ({ children 
             Page Error
           </h1>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            We're sorry, but something went wrong loading this page.
+            We&apos;re sorry, but something went wrong loading this page.
             Our team has been notified and is working on a fix.
           </p>
 

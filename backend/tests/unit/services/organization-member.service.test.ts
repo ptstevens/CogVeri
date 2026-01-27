@@ -181,18 +181,43 @@ describe('OrganizationMemberService Audit Logging', () => {
 
   describe('removeUserFromOrganization', () => {
     it('should log member removed action', async () => {
-      const dbMock = db as unknown as any;
-
       const mockMember = {
         id: mockUserId,
         email: mockEmail,
+        organization_id: mockOrgId,
         org_role: 'member',
         first_name: 'Test',
+        name: 'Test User',
       };
 
-      dbMock().where().first.mockResolvedValueOnce(mockMember); // Get member
-      dbMock().update.mockResolvedValueOnce(1); // Update user (remove)
-      dbMock().where().select().first.mockResolvedValueOnce({ name: 'Test Org' }); // Get org for email
+      const mockMembership = {
+        user_id: mockUserId,
+        organization_id: mockOrgId,
+        role: 'member',
+      };
+
+      // Table-aware mock for removeUserFromOrganization which queries:
+      // 1. users table to get user
+      // 2. organization_members table to check membership
+      // 3. organization_members table to delete (if exists)
+      // 4. users table to update (if legacy member)
+      // 5. organizations table for email
+      (db as any).mockImplementation((table: string) => {
+        const builder: any = {
+          where: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          count: vi.fn().mockReturnThis(),
+          update: vi.fn().mockResolvedValue(1),
+          del: vi.fn().mockResolvedValue(1),
+          first: vi.fn().mockResolvedValue(
+            table === 'users' ? mockMember :
+            table === 'organization_members' ? mockMembership :
+            table === 'organizations' ? { name: 'Test Org' } :
+            null
+          ),
+        };
+        return builder;
+      });
 
       await organizationMemberService.removeUserFromOrganization(
         mockOrgId,

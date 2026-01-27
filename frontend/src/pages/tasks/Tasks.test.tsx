@@ -103,7 +103,7 @@ describe('Tasks Page', () => {
       title: 'Task One',
       description: 'First task',
       type: 'recording',
-      status: 'pending',
+      status: 'assigned',
       priority: 'high',
       assigned_to: 'user-123',
       created_by: 'user-123',
@@ -130,18 +130,21 @@ describe('Tasks Page', () => {
 
   const mockStatistics = {
     total: 4,
-    pending: 1,
+    assigned: 1,
     in_progress: 1,
     completed: 1,
-    reviewed: 1,
+    rejected: 0,
     overdue: 0,
   };
 
   const mockTasksByStatus = {
-    pending: [mockTasks[0]],
+    draft: [],
+    assigned: [mockTasks[0]],
     in_progress: [mockTasks[1]],
+    submitted: [],
+    in_review: [],
     completed: [],
-    reviewed: [],
+    rejected: [],
   };
 
   beforeEach(() => {
@@ -197,7 +200,7 @@ describe('Tasks Page', () => {
       });
 
       // Statistics cards should show status labels (may appear multiple times)
-      expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Assigned').length).toBeGreaterThan(0);
       expect(screen.getAllByText('In Progress').length).toBeGreaterThan(0);
     });
 
@@ -314,12 +317,12 @@ describe('Tasks Page', () => {
       });
 
       const statusFilter = screen.getByLabelText(/filter by status/i);
-      await user.selectOptions(statusFilter, 'pending');
+      await user.selectOptions(statusFilter, 'assigned');
 
       await waitFor(() => {
         // Component passes both status and scope (defaults to 'mine')
         expect(mockGetTasks).toHaveBeenCalledWith(
-          expect.objectContaining({ status: 'pending' })
+          expect.objectContaining({ status: 'assigned' })
         );
       });
     });
@@ -389,7 +392,7 @@ describe('Tasks Page', () => {
   });
 
   describe('Task Status Changes', () => {
-    it('shows start task option for pending tasks', async () => {
+    it('shows start task option for assigned tasks', async () => {
       const { user } = renderTasks();
 
       await waitFor(() => {

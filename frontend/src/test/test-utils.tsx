@@ -91,7 +91,7 @@ export const createMockTask = (overrides: Partial<MockTask> = {}): MockTask => (
   id: 'task-123',
   title: 'Test Task',
   description: 'Test task description',
-  status: 'pending',
+  status: 'assigned',
   priority: 'medium',
   assigned_to: 'user-123',
   reviewed_by: null,

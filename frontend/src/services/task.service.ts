@@ -183,7 +183,8 @@ class TaskService {
   }
 
   async getPendingTasks(): Promise<Task[]> {
-    return this.getTasks({ status: 'pending' });
+    // 'assigned' = tasks assigned but not yet started
+    return this.getTasks({ status: 'assigned' });
   }
 
   async getUpcomingTasks(): Promise<Task[]> {

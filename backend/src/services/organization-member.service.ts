@@ -763,37 +763,70 @@ class OrganizationMemberService {
     removedByUserId: string
   ): Promise<RemoveResult> {
     try {
-      // Get user details
-      const user = await db('users')
-        .where('id', userId)
+      // Get user details - check both users table and organization_members table
+      // (users may join via invitation which only adds to organization_members)
+      const user = await db('users').where('id', userId).first();
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Check membership in organization_members table (primary source for multi-org model)
+      const membership = await db('organization_members')
+        .where('user_id', userId)
         .where('organization_id', organizationId)
         .first();
 
-      if (!user) {
+      // Also check legacy users.organization_id field
+      const isLegacyMember = user.organization_id === organizationId;
+
+      if (!membership && !isLegacyMember) {
         throw new Error('User is not a member of this organization');
       }
 
+      // Get the role from membership table or fallback to users table
+      const memberRole = membership?.role || user.org_role;
+
       // Prevent removing last owner
-      if (user.org_role === 'owner') {
-        const ownerCount = await db('users')
+      if (memberRole === 'owner') {
+        const ownerCount = await db('organization_members')
+          .where('organization_id', organizationId)
+          .where('role', 'owner')
+          .count('id as count')
+          .first();
+
+        // Also check legacy users table for owners
+        const legacyOwnerCount = await db('users')
           .where('organization_id', organizationId)
           .where('org_role', 'owner')
           .count('id as count')
           .first();
 
-        if (Number(ownerCount?.count ?? 0) <= 1) {
+        const totalOwners = Number(ownerCount?.count ?? 0) + Number(legacyOwnerCount?.count ?? 0);
+
+        if (totalOwners <= 1) {
           throw new Error('Cannot remove last owner of organization');
         }
       }
 
-      // Remove from organization
-      await db('users').where('id', userId).update({
-        organization_id: null,
-        current_organization_id: null,
-        org_role: null,
-        org_status: null,
-        joined_organization_at: null,
-      });
+      // Remove from organization_members table
+      if (membership) {
+        await db('organization_members')
+          .where('user_id', userId)
+          .where('organization_id', organizationId)
+          .del();
+      }
+
+      // Clear legacy fields in users table if this was their primary org
+      if (isLegacyMember) {
+        await db('users').where('id', userId).update({
+          organization_id: null,
+          current_organization_id: null,
+          org_role: null,
+          org_status: null,
+          joined_organization_at: null,
+        });
+      }
 
       // Log the removal
       await logMemberRemoved(organizationId, userId, removedByUserId);

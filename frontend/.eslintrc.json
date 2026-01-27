@@ -7,7 +7,7 @@
     "plugin:react-hooks/recommended",
     "plugin:react/recommended"
   ],
-  "ignorePatterns": ["dist", ".eslintrc.json", "node_modules"],
+  "ignorePatterns": ["dist", ".eslintrc.json", "node_modules", "vitest.config.ts", "vite.config.ts"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "ecmaVersion": "latest",
@@ -39,6 +39,11 @@
     ],
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/ban-types": "warn",
+    "react/no-unescaped-entities": "warn",
+    "no-case-declarations": "warn",
+    "no-useless-escape": "warn",
+    "prefer-const": "warn",
     "no-console": ["warn", { "allow": ["warn", "error", "info"] }]
   }
 }

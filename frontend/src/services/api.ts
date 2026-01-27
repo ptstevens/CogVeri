@@ -70,7 +70,8 @@ function requiresCsrfToken(method: string | undefined): boolean {
 }
 
 // Paths that should not trigger 401 redirect (they handle auth differently)
-const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/magic-link', '/join', '/auth/join-organization', '/auth/callback'];
+// Includes /t/ for magic link task pages which work without authentication
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/magic-link', '/join', '/auth/join-organization', '/auth/callback', '/t/'];
 
 // Error toast debouncing
 const recentErrors = new Map<string, number>();

@@ -60,10 +60,10 @@ export const mockAuthApi = {
 // ============================================================================
 
 const mockTasks = [
-  createMockTask({ id: 'task-1', title: 'Task 1', status: 'pending' }),
+  createMockTask({ id: 'task-1', title: 'Task 1', status: 'assigned' }),
   createMockTask({ id: 'task-2', title: 'Task 2', status: 'in_progress' }),
   createMockTask({ id: 'task-3', title: 'Task 3', status: 'completed' }),
-  createMockTask({ id: 'task-4', title: 'Task 4', status: 'reviewed' }),
+  createMockTask({ id: 'task-4', title: 'Task 4', status: 'submitted' }),
 ];
 
 export const mockTaskApi = {

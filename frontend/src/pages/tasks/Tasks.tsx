@@ -29,7 +29,8 @@ import { StatusBadge, PriorityBadge, ExpandableRichText, ScopeToggle, ScopeValue
 import toast from 'react-hot-toast';
 
 type ViewMode = 'list' | 'kanban';
-type FilterStatus = 'all' | 'pending' | 'in_progress' | 'submitted' | 'in_review' | 'completed' | 'reviewed' | 'rejected';
+// Valid task statuses matching backend: draft, assigned, in_progress, submitted, in_review, completed, rejected
+type FilterStatus = 'all' | 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'in_review' | 'completed' | 'rejected';
 
 // ★ Memoized task card component for list and kanban views
 interface TaskCardProps {
@@ -70,10 +71,11 @@ const TaskCard = React.memo(
     const getStatusIcon = useMemo(() => {
       switch (task.status) {
         case 'completed':
-        case 'reviewed':
           return <CheckCircle className="h-4 w-4 text-green-500" />;
         case 'in_progress':
           return <Clock className="h-4 w-4 text-blue-500" />;
+        case 'rejected':
+          return <AlertTriangle className="h-4 w-4 text-red-500" />;
         default:
           return <AlertCircle className="h-4 w-4 text-gray-500" />;
       }
@@ -145,7 +147,7 @@ const TaskCard = React.memo(
                     Edit Task
                   </button>
                 )}
-                {task.status === 'pending' && (
+                {task.status === 'assigned' && (
                   <button
                     onClick={() => handleStatusChange('in_progress')}
                     className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -310,12 +312,15 @@ const KanbanColumn = React.memo(
 
 KanbanColumn.displayName = 'KanbanColumn';
 
-// Kanban column configuration
+// Kanban column configuration - matches backend task statuses
 const KANBAN_COLUMNS = [
-  { key: 'pending', title: 'Pending', color: 'bg-gray-400' },
+  { key: 'draft', title: 'Draft', color: 'bg-gray-300' },
+  { key: 'assigned', title: 'Assigned', color: 'bg-gray-400' },
   { key: 'in_progress', title: 'In Progress', color: 'bg-blue-500' },
+  { key: 'submitted', title: 'Submitted', color: 'bg-yellow-500' },
+  { key: 'in_review', title: 'In Review', color: 'bg-purple-500' },
   { key: 'completed', title: 'Completed', color: 'bg-green-500' },
-  { key: 'reviewed', title: 'Reviewed', color: 'bg-purple-500' },
+  { key: 'rejected', title: 'Rejected', color: 'bg-red-500' },
 ] as const;
 
 // ★ Memoized kanban view component
@@ -425,8 +430,8 @@ const KanbanView = React.memo(
             style={{ scrollbarWidth: 'thin' }}
           >
             <KanbanColumn
-              title="Pending"
-              tasks={tasksByStatus.pending}
+              title="Assigned"
+              tasks={tasksByStatus.assigned || []}
               onEdit={onEdit}
               onStatusChange={onStatusChange}
               onDelete={onDelete}
@@ -436,7 +441,7 @@ const KanbanView = React.memo(
             />
             <KanbanColumn
               title="In Progress"
-              tasks={tasksByStatus.in_progress}
+              tasks={tasksByStatus.in_progress || []}
               onEdit={onEdit}
               onStatusChange={onStatusChange}
               onDelete={onDelete}
@@ -445,24 +450,24 @@ const KanbanView = React.memo(
               statusColor="bg-blue-500"
             />
             <KanbanColumn
-              title="Completed"
-              tasks={tasksByStatus.completed}
-              onEdit={onEdit}
-              onStatusChange={onStatusChange}
-              onDelete={onDelete}
-              onViewDetails={onViewDetails}
-              userId={userId}
-              statusColor="bg-green-500"
-            />
-            <KanbanColumn
-              title="Reviewed"
-              tasks={tasksByStatus.reviewed}
+              title="In Review"
+              tasks={tasksByStatus.in_review || []}
               onEdit={onEdit}
               onStatusChange={onStatusChange}
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               userId={userId}
               statusColor="bg-purple-500"
+            />
+            <KanbanColumn
+              title="Completed"
+              tasks={tasksByStatus.completed || []}
+              onEdit={onEdit}
+              onStatusChange={onStatusChange}
+              onDelete={onDelete}
+              onViewDetails={onViewDetails}
+              userId={userId}
+              statusColor="bg-green-500"
             />
           </div>
         </div>
@@ -487,15 +492,15 @@ const STAT_CARDS = [
     getValue: (s: TaskStatistics) => s.total,
   },
   {
-    key: 'pending',
-    filterValue: 'pending' as FilterStatus,
-    label: 'Pending',
+    key: 'assigned',
+    filterValue: 'assigned' as FilterStatus,
+    label: 'Assigned',
     icon: Hourglass,
     gradient: 'from-amber-500 to-yellow-500',
     bgGradient: 'from-amber-500/10 to-yellow-500/10',
     iconColor: 'text-amber-500',
     ringColor: 'ring-amber-500',
-    getValue: (s: TaskStatistics) => s.pending,
+    getValue: (s: TaskStatistics) => s.assigned || s.pending || 0,
   },
   {
     key: 'in_progress',
@@ -542,15 +547,15 @@ const STAT_CARDS = [
     getValue: (s: TaskStatistics) => s.completed,
   },
   {
-    key: 'reviewed',
-    filterValue: 'reviewed' as FilterStatus,
-    label: 'Reviewed',
+    key: 'rejected',
+    filterValue: 'rejected' as FilterStatus,
+    label: 'Rejected',
     icon: ClipboardCheck,
-    gradient: 'from-purple-500 to-violet-500',
-    bgGradient: 'from-purple-500/10 to-violet-500/10',
-    iconColor: 'text-purple-500',
-    ringColor: 'ring-purple-500',
-    getValue: (s: TaskStatistics) => s.reviewed,
+    gradient: 'from-red-500 to-rose-500',
+    bgGradient: 'from-red-500/10 to-rose-500/10',
+    iconColor: 'text-red-500',
+    ringColor: 'ring-red-500',
+    getValue: (s: TaskStatistics) => s.rejected || 0,
   },
   {
     key: 'overdue',
@@ -664,7 +669,7 @@ const Tasks: React.FC = () => {
 
   // Read initial filter from URL params (e.g., /tasks?status=completed)
   const urlStatus = searchParams.get('status') as FilterStatus | null;
-  const validStatuses = ['all', 'pending', 'in_progress', 'submitted', 'in_review', 'completed', 'reviewed', 'rejected'];
+  const validStatuses = ['all', 'draft', 'assigned', 'in_progress', 'submitted', 'in_review', 'completed', 'rejected'];
   const [filterStatus, setFilterStatus] = useState<FilterStatus>(
     urlStatus && validStatuses.includes(urlStatus)
       ? urlStatus
@@ -853,12 +858,12 @@ const Tasks: React.FC = () => {
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Status</option>
-                <option value="pending">Pending</option>
+                <option value="draft">Draft</option>
+                <option value="assigned">Assigned</option>
                 <option value="in_progress">In Progress</option>
                 <option value="submitted">Awaiting Review</option>
                 <option value="in_review">In Review</option>
                 <option value="completed">Completed</option>
-                <option value="reviewed">Reviewed</option>
                 <option value="rejected">Rejected</option>
               </select>
             </>

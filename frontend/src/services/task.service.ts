@@ -80,21 +80,30 @@ export interface TaskFilters {
 
 export interface TaskStatistics {
   total: number;
-  pending: number;
+  draft: number;
+  assigned: number;     // Tasks assigned but not started (was 'pending')
   in_progress: number;
   submitted: number;    // Awaiting review
   in_review: number;    // Currently being reviewed
   completed: number;
-  reviewed: number;
   rejected: number;
   overdue: number;
+  // Legacy fields for backwards compatibility
+  pending?: number;     // Deprecated: use 'assigned'
+  reviewed?: number;    // Deprecated: no longer a valid status
 }
 
 export interface TasksByStatus {
-  pending: Task[];
+  draft: Task[];
+  assigned: Task[];     // Tasks assigned but not started (was 'pending')
   in_progress: Task[];
+  submitted: Task[];
+  in_review: Task[];
   completed: Task[];
-  reviewed: Task[];
+  rejected: Task[];
+  // Legacy fields for backwards compatibility
+  pending?: Task[];     // Deprecated: use 'assigned'
+  reviewed?: Task[];    // Deprecated: no longer a valid status
 }
 
 class TaskService {

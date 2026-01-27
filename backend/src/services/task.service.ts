@@ -118,7 +118,8 @@ class TaskService {
    * Check if user has admin privileges
    */
   private isAdmin(userRole: string): boolean {
-    return ADMIN_ROLES.includes(userRole as typeof ADMIN_ROLES[number]);
+    // Handle both lowercase (from JWT) and uppercase (legacy) roles
+    return ADMIN_ROLES.includes(userRole.toUpperCase() as typeof ADMIN_ROLES[number]);
   }
 
   /**

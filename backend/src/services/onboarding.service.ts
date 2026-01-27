@@ -196,7 +196,7 @@ class OnboardingService {
             ...userWithoutPassword,
             org_id: organization.id,
             org_slug: organization.slug,
-            org_role: 'OWNER',
+            org_role: 'owner',
           },
           organization,
           accessToken,

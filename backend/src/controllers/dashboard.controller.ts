@@ -20,7 +20,7 @@ export const getDashboardStats = async (req: AuthenticatedRequest, res: Response
 
     // If user is a manager, also get team stats
     let teamStats = null;
-    if (userRole === 'MANAGER' || userRole === 'ADMIN' || userRole === 'OWNER') {
+    if (userRole === 'manager' || userRole === 'admin' || userRole === 'owner') {
       teamStats = await dashboardService.getManagerDashboardStats(userId, organizationId);
     }
 

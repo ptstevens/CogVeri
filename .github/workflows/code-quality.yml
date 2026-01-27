@@ -29,6 +29,8 @@ jobs:
       - name: Lint backend
         working-directory: ./backend
         run: npm run lint
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Type check backend
         working-directory: ./backend
@@ -37,6 +39,8 @@ jobs:
       - name: Lint frontend
         working-directory: ./frontend
         run: npm run lint
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Type check frontend
         working-directory: ./frontend

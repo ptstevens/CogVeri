@@ -479,32 +479,34 @@ export default function AdminVideoUpload() {
                   </span>
                 </div>
 
-                {/* Existing Recording Info & Replace Toggle */}
-                {taskDetails.has_recording && taskDetails.existing_recording && (
-                  <div className={`border rounded-lg p-4 ${replaceExisting ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${replaceExisting ? 'text-amber-600' : 'text-blue-600'}`} />
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${replaceExisting ? 'text-amber-800' : 'text-blue-800'}`}>
-                          {replaceExisting ? 'Existing recording will be replaced' : 'New recording will be added (history preserved)'}
-                        </p>
+                {/* Recording Mode Toggle - Always visible */}
+                <div className={`border rounded-lg p-4 ${replaceExisting ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className={`h-5 w-5 flex-shrink-0 mt-0.5 ${replaceExisting ? 'text-amber-600' : 'text-blue-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${replaceExisting ? 'text-amber-800' : 'text-blue-800'}`}>
+                        {replaceExisting
+                          ? (taskDetails.has_recording ? 'Existing recording will be replaced' : 'Replace mode: Any existing recordings will be removed')
+                          : (taskDetails.has_recording ? 'New recording will be added (history preserved)' : 'Append mode: Recording will be added to task')}
+                      </p>
+                      {taskDetails.has_recording && taskDetails.existing_recording && (
                         <p className={`text-xs mt-1 ${replaceExisting ? 'text-amber-700' : 'text-blue-700'}`}>
                           Existing: {taskDetails.existing_recording.status} • {formatFileSize(taskDetails.existing_recording.file_size_bytes)} • {formatDate(taskDetails.existing_recording.created_at)}
                         </p>
-                        {/* Replace Toggle */}
-                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={replaceExisting}
-                            onChange={(e) => setReplaceExisting(e.target.checked)}
-                            className="w-4 h-4 text-primary-600 bg-white border-gray-300 rounded focus:ring-primary-500"
-                          />
-                          <span className="text-xs text-gray-700">Replace existing recordings</span>
-                        </label>
-                      </div>
+                      )}
+                      {/* Replace Toggle */}
+                      <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={replaceExisting}
+                          onChange={(e) => setReplaceExisting(e.target.checked)}
+                          className="w-4 h-4 text-primary-600 bg-white border-gray-300 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-xs text-gray-700">Replace existing recordings</span>
+                      </label>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Upload Success */}
                 {uploadSuccess && (

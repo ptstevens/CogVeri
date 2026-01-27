@@ -157,7 +157,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
             file_type: 'video/mp4',
             // Use floor to match video player display (players show floor of duration)
             duration_seconds: Math.floor(outputMetadata.duration),
-            file_size: outputMetadata.size,
+            file_size_bytes: outputMetadata.size,
             updated_at: new Date(),
           });
 
@@ -181,7 +181,7 @@ export class TranscodeProcessor extends BaseProcessor<TranscodeJobData, Transcod
           .update({
             // Use floor to match video player display (players show floor of duration)
             duration_seconds: Math.floor(outputMetadata.duration),
-            file_size: outputMetadata.size,
+            file_size_bytes: outputMetadata.size,
             updated_at: new Date(),
           });
       }

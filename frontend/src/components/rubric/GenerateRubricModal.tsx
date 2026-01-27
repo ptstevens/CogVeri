@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowRight, FileVideo, Plus, X, Clock } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowRight, FileVideo, Plus, X, Clock, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
@@ -62,6 +62,7 @@ export function GenerateRubricModal({
   const [templatePriority, setTemplatePriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [templateCategory, setTemplateCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
 
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartTimeRef = useRef<number>(0);
@@ -125,6 +126,7 @@ export function GenerateRubricModal({
     setTemplatePriority('medium');
     setTemplateCategory('');
     setIsSaving(false);
+    setShowProcessingModal(false);
     isClosingRef.current = false;
 
     onClose();
@@ -223,6 +225,7 @@ export function GenerateRubricModal({
     setUploadError(null);
     setStep('transcribing');
     setGenerationStatus({ status: 'transcribing', progress: 10 });
+    setShowProcessingModal(true); // Show confirmation popup
     pollStartTimeRef.current = Date.now();
     // Start polling for transcription status
     pollTimeoutRef.current = setTimeout(pollStatus, POLL_INTERVAL_MS);
@@ -903,6 +906,34 @@ export function GenerateRubricModal({
             <Button variant="primary" onClick={handleRetry} className="flex-1">
               Try Again
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Processing Started Confirmation Modal */}
+      {showProcessingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <Bell className="h-6 w-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Video Processing Started
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Your video has been uploaded and transcription has started. Configure your task type while you wait.
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                Processing typically takes 1-2 minutes depending on video length.
+              </p>
+              <button
+                onClick={() => setShowProcessingModal(false)}
+                className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+              >
+                Got it
+              </button>
+            </div>
           </div>
         </div>
       )}

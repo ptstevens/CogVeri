@@ -4,6 +4,67 @@ import { organizationService } from '../services/organization.service';
 import { organizationMemberService } from '../services/organization-member.service';
 import pricingService, { PricingTier } from '../services/pricing.service';
 
+// Database entity types for type-safe queries
+interface DbUser {
+  id: string;
+  email: string;
+  name: string | null;
+  organization_id: string | null;
+  system_role?: string;
+  [key: string]: unknown;
+}
+
+interface DbOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  domain: string | null;
+  domain_verified: boolean;
+  subscription_tier: string;
+  is_active: boolean;
+  is_suspended: boolean;
+  owner_id: string;
+  owner_email?: string;
+  member_count?: string | number;
+  custom_features?: string | Record<string, boolean>;
+  custom_limits?: string | Record<string, number>;
+  created_at: Date | string;
+  updated_at: Date | string;
+  description?: string;
+}
+
+interface DbSubscription {
+  id: string;
+  organization_id: string;
+  subscription_tier: string;
+  status: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+interface DbAuditLog {
+  id: string;
+  organization_id: string;
+  actor_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  changes?: string;
+  metadata?: string;
+  status: string;
+  created_at: Date | string;
+}
+
+interface CountResult {
+  count?: string | number;
+  total?: string | number;
+}
+
+interface TierDistribution {
+  subscription_tier: string | null;
+  count: string | number;
+}
+
 class AdminController {
   /**
    * Create a new organization (admin only)
@@ -26,14 +87,7 @@ class AdminController {
       }
 
       // Check if user exists
-      interface DbUser {
-        id: string;
-        email: string;
-        name: string | null;
-        organization_id: string | null;
-        [key: string]: unknown;
-      }
-      let user: DbUser | undefined = await db('users').where('email', ownerEmail.toLowerCase()).first();
+      let user: DbUser | undefined = await db('users').where('email', ownerEmail.toLowerCase()).first() as DbUser | undefined;
 
       if (!user) {
         // Create new user with invited status
@@ -240,14 +294,14 @@ class AdminController {
           countQuery = countQuery.where('o.is_suspended', true);
         }
       }
-      const countResult = await countQuery.count('o.id as total').first();
+      const countResult = await countQuery.count('o.id as total').first() as CountResult | undefined;
       const total = parseInt(countResult?.total?.toString() || '0');
 
       // Get paginated results with JOINs (single query instead of N+1)
-      const organizations = await query.orderBy('o.created_at', 'desc').limit(limit).offset(offset);
+      const organizations = await query.orderBy('o.created_at', 'desc').limit(limit).offset(offset) as DbOrganization[];
 
       // Map to expected response format
-      const enriched = organizations.map((org) => ({
+      const enriched = organizations.map((org: DbOrganization) => ({
         id: org.id,
         name: org.name,
         slug: org.slug,
@@ -309,19 +363,19 @@ class AdminController {
       });
 
       // Get owner info
-      const owner = await db('users').where('id', org.owner_id as string).first();
+      const owner = await db('users').where('id', org.owner_id as string).first() as DbUser | undefined;
 
       // Get subscription info from dedicated table (if exists)
       const subscription = await db('organization_subscriptions')
         .where('organization_id', organizationId)
         .orderBy('created_at', 'desc')
-        .first();
+        .first() as DbSubscription | undefined;
 
       // Get recent audit logs
       const auditLogs = await db('organization_audit_logs')
         .where('organization_id', organizationId)
         .orderBy('created_at', 'desc')
-        .limit(20);
+        .limit(20) as DbAuditLog[];
 
       // Calculate metrics
       const createdAt = new Date(org.created_at as string | number | Date);
@@ -385,63 +439,63 @@ class AdminController {
   async getSystemMetrics(_req: Request, res: Response): Promise<void> {
     try {
       // Total organizations
-      const [countResult1] = await db('organizations').count('id as count');
+      const [countResult1] = await db('organizations').count('id as count') as CountResult[];
       const totalOrgs = parseInt(countResult1?.count?.toString() || '0');
 
       // Active organizations
       const [countResult2] = await db('organizations')
         .where('is_active', true)
         .where('is_suspended', false)
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const activeOrgs = parseInt(countResult2?.count?.toString() || '0');
 
       // Suspended organizations
       const [countResult3] = await db('organizations')
         .where('is_suspended', true)
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const suspendedOrgs = parseInt(countResult3?.count?.toString() || '0');
 
       // Verified domains
       const [countResult4] = await db('organizations')
         .where('domain_verified', true)
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const verifiedDomains = parseInt(countResult4?.count?.toString() || '0');
 
       // Total users
-      const [countResult5] = await db('users').count('id as count');
+      const [countResult5] = await db('users').count('id as count') as CountResult[];
       const totalUsers = parseInt(countResult5?.count?.toString() || '0');
 
       // System admins
       const [countResult6] = await db('users')
         .where('system_role', 'SUPER_ADMIN')
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const systemAdmins = parseInt(countResult6?.count?.toString() || '0');
 
       // Organizations by tier
       const tierDistribution = await db('organizations')
         .select('subscription_tier')
         .count('id as count')
-        .groupBy('subscription_tier');
+        .groupBy('subscription_tier') as TierDistribution[];
 
       // Organizations created in last 7 days
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const [countResult7] = await db('organizations')
         .where('created_at', '>=', weekAgo)
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const newOrgsWeek = parseInt(countResult7?.count?.toString() || '0');
 
       // Organizations created in last 30 days
       const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [countResult8] = await db('organizations')
         .where('created_at', '>=', monthAgo)
-        .count('id as count');
+        .count('id as count') as CountResult[];
       const newOrgsMonth = parseInt(countResult8?.count?.toString() || '0');
 
       // Average members per organization
       const avgMembersResult = await db('users')
         .whereNotNull('organization_id')
         .count('id as count')
-        .first();
+        .first() as CountResult | undefined;
 
       const avgMembers =
         totalOrgs > 0
@@ -559,17 +613,17 @@ class AdminController {
       }
 
       // Get count
-      const [countResult] = await query.clone().count('id as count');
+      const [countResult] = await query.clone().count('id as count') as CountResult[];
       const total = parseInt(countResult?.count?.toString() || '0');
 
       // Get paginated logs
-      const logs = await query.orderBy('created_at', 'desc').limit(limit).offset(offset);
+      const logs = await query.orderBy('created_at', 'desc').limit(limit).offset(offset) as DbAuditLog[];
 
       // Enrich with actor info
       const enriched = await Promise.all(
-        logs.map(async (log) => {
+        logs.map(async (log: DbAuditLog) => {
           const actor = log.actor_id
-            ? await db('users').where('id', log.actor_id).select('email').first()
+            ? await db('users').where('id', log.actor_id).select('email').first() as { email: string } | undefined
             : null;
 
           return {
@@ -616,7 +670,7 @@ class AdminController {
       const systemAdminId = req.user!.id;
 
       // Verify organization exists
-      const org = await db('organizations').where('id', organizationId).first();
+      const org = await db('organizations').where('id', organizationId).first() as DbOrganization | undefined;
       if (!org) {
         res.status(404).json({
           error: 'Organization not found',
@@ -625,12 +679,16 @@ class AdminController {
       }
 
       // Create impersonation token (store in cache/memory for 1 hour)
-      const impersonationToken = require('crypto').randomBytes(32).toString('hex');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const crypto = require('crypto') as { randomBytes: (n: number) => { toString: (enc: string) => string } };
+      const impersonationToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
       // Store in database for validation
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const uuid = require('uuid') as { v4: () => string };
       await db('admin_impersonation_tokens').insert({
-        id: require('uuid').v4(),
+        id: uuid.v4(),
         system_admin_id: systemAdminId,
         organization_id: organizationId,
         token: impersonationToken,
@@ -682,7 +740,7 @@ class AdminController {
       const org = await db('organizations')
         .where('id', organizationId)
         .select('id', 'name', 'subscription_tier', 'custom_features')
-        .first();
+        .first() as Pick<DbOrganization, 'id' | 'name' | 'subscription_tier' | 'custom_features'> | undefined;
 
       if (!org) {
         res.status(404).json({ error: 'Organization not found' });
@@ -694,10 +752,10 @@ class AdminController {
       const tierFeatures = tier.features;
 
       // Parse custom overrides
-      const customFeatures = org.custom_features
+      const customFeatures: Record<string, boolean> = org.custom_features
         ? typeof org.custom_features === 'string'
-          ? JSON.parse(org.custom_features)
-          : org.custom_features
+          ? JSON.parse(org.custom_features) as Record<string, boolean>
+          : org.custom_features as Record<string, boolean>
         : {};
 
       // Get effective features
@@ -776,7 +834,7 @@ class AdminController {
       const org = await db('organizations')
         .where('id', organizationId)
         .select('id', 'subscription_tier', 'custom_features')
-        .first();
+        .first() as Pick<DbOrganization, 'id' | 'subscription_tier' | 'custom_features'> | undefined;
 
       if (!org) {
         res.status(404).json({ error: 'Organization not found' });
@@ -784,10 +842,10 @@ class AdminController {
       }
 
       // Parse existing custom features
-      const currentCustomFeatures = org.custom_features
+      const currentCustomFeatures: Record<string, boolean> = org.custom_features
         ? typeof org.custom_features === 'string'
-          ? JSON.parse(org.custom_features)
-          : org.custom_features
+          ? JSON.parse(org.custom_features) as Record<string, boolean>
+          : org.custom_features as Record<string, boolean>
         : {};
 
       // Get valid feature names from tier
@@ -802,7 +860,7 @@ class AdminController {
           continue; // Skip invalid feature names
         }
 
-        const oldValue = currentCustomFeatures[key] !== undefined ? currentCustomFeatures[key] : null;
+        const oldValue: boolean | null = currentCustomFeatures[key] !== undefined ? currentCustomFeatures[key] : null;
 
         if (value === null) {
           // Remove override
@@ -868,7 +926,7 @@ class AdminController {
       const org = await db('organizations')
         .where('id', organizationId)
         .select('id', 'name', 'subscription_tier', 'custom_limits')
-        .first();
+        .first() as Pick<DbOrganization, 'id' | 'name' | 'subscription_tier' | 'custom_limits'> | undefined;
 
       if (!org) {
         res.status(404).json({ error: 'Organization not found' });
@@ -880,10 +938,10 @@ class AdminController {
       const tierLimits = tier.limits;
 
       // Parse custom overrides
-      const customLimits = org.custom_limits
+      const customLimits: Record<string, number> = org.custom_limits
         ? typeof org.custom_limits === 'string'
-          ? JSON.parse(org.custom_limits)
-          : org.custom_limits
+          ? JSON.parse(org.custom_limits) as Record<string, number>
+          : org.custom_limits as unknown as Record<string, number>
         : {};
 
       // Get effective limits
@@ -909,7 +967,7 @@ class AdminController {
       for (const [key, tierValue] of Object.entries(tierLimits)) {
         const limitKey = key as keyof PricingTier['limits'];
         const desc = limitDescriptions[limitKey];
-        const customValue = customLimits[key] !== undefined ? customLimits[key] : null;
+        const customValue: number | null = customLimits[key] !== undefined ? customLimits[key] : null;
         const effectiveValue = effectiveLimits[limitKey];
 
         limits[key] = {
@@ -963,7 +1021,7 @@ class AdminController {
       const org = await db('organizations')
         .where('id', organizationId)
         .select('id', 'subscription_tier', 'custom_limits')
-        .first();
+        .first() as Pick<DbOrganization, 'id' | 'subscription_tier' | 'custom_limits'> | undefined;
 
       if (!org) {
         res.status(404).json({ error: 'Organization not found' });
@@ -971,10 +1029,10 @@ class AdminController {
       }
 
       // Parse existing custom limits
-      const currentCustomLimits = org.custom_limits
+      const currentCustomLimits: Record<string, number> = org.custom_limits
         ? typeof org.custom_limits === 'string'
-          ? JSON.parse(org.custom_limits)
-          : org.custom_limits
+          ? JSON.parse(org.custom_limits) as Record<string, number>
+          : org.custom_limits as unknown as Record<string, number>
         : {};
 
       // Get valid limit names from tier
@@ -989,7 +1047,7 @@ class AdminController {
           continue; // Skip invalid limit names
         }
 
-        const oldValue = currentCustomLimits[key] !== undefined ? currentCustomLimits[key] : null;
+        const oldValue: number | null = currentCustomLimits[key] !== undefined ? currentCustomLimits[key] : null;
 
         if (value === null) {
           // Remove override

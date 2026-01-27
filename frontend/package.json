@@ -41,7 +41,7 @@
     "@types/marked": "^5.0.2",
     "@vidstack/react": "^1.12.13",
     "axios": "^1.13.2",
-    "date-fns": "^3.0.6",
+    "date-fns": "^4.1.0",
     "dompurify": "^3.3.1",
     "lucide-react": "^0.545.0",
     "marked": "^17.0.1",

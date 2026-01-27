@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import { analysisService } from '../../services/analysis/analysis.service';
 import { frameExtractionService } from '../../services/analysis/frame-extraction.service';
 import notificationDispatcherService from '../../services/notification-dispatcher.service';
+import { recordingNotificationService } from '../../services/recording-notification.service';
 
 /**
  * Analysis Processor
@@ -238,10 +239,12 @@ export class AnalysisProcessor extends BaseProcessor<AnalysisJobData, AnalysisJo
       const task = await db('tasks').where('id', taskId).first();
       const recording = await db('recordings').where('id', recordingId).first();
 
+      // Format verdict text for notifications
+      const verdictText = result.overallVerdict === 'PASS' ? 'passed' :
+                         result.overallVerdict === 'PARTIAL_PASS' ? 'partially passed' :
+                         result.overallVerdict === 'NEEDS_REVIEW' ? 'needs review' : 'did not pass';
+
       if (task && task.created_by) {
-        const verdictText = result.overallVerdict === 'PASS' ? 'passed' :
-                           result.overallVerdict === 'PARTIAL_PASS' ? 'partially passed' :
-                           result.overallVerdict === 'NEEDS_REVIEW' ? 'needs review' : 'did not pass';
 
         await notificationDispatcherService.dispatch({
           userId: task.created_by,
@@ -264,6 +267,32 @@ export class AnalysisProcessor extends BaseProcessor<AnalysisJobData, AnalysisJo
           taskCreator: task.created_by,
           verdict: result.overallVerdict,
         });
+      }
+
+      // Send reviewer notification email (delayed until after analysis completes)
+      // This ensures reviewers see AI results when they open the review
+      if (task && task.reviewed_by && recording) {
+        try {
+          await recordingNotificationService.sendReviewerNotificationWithAnalysis(
+            { id: recordingId, task_id: taskId },
+            recording.file_url,
+            recording.user_id,
+            {
+              score: result.overallScore,
+              verdict: result.overallVerdict,
+              verdictText,
+            }
+          );
+          logger.info('Reviewer notification sent after analysis', {
+            analysisJobId: result.analysisJobId,
+            reviewerId: task.reviewed_by,
+          });
+        } catch (reviewerNotifyError) {
+          logger.error('Failed to send reviewer notification after analysis', {
+            analysisJobId: result.analysisJobId,
+            error: reviewerNotifyError instanceof Error ? reviewerNotifyError.message : 'Unknown error',
+          });
+        }
       }
     } catch (notificationError) {
       // Log but don't fail - analysis completed successfully

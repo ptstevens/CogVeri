@@ -319,6 +319,57 @@ class EmailService {
     logger.info(`Review notification sent to ${reviewer.email} for task ${task.id}`);
   }
 
+  // Send review notification with AI analysis results (sent after analysis completes)
+  async sendReviewNotificationWithAnalysis(
+    task: any,
+    reviewer: any,
+    assignee: any,
+    analysisResults: { score: number; verdict: string; verdictText: string }
+  ): Promise<void> {
+    const subject = `Recording Ready for Review: ${task.title} (${analysisResults.verdictText})`;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://cogveri.com';
+
+    // Determine color based on verdict
+    const verdictColors: Record<string, string> = {
+      'PASS': BRAND_COLORS.success,
+      'PARTIAL_PASS': '#F59E0B', // amber
+      'NEEDS_REVIEW': '#F59E0B', // amber
+      'FAIL': BRAND_COLORS.error,
+    };
+    const verdictColor = verdictColors[analysisResults.verdict] || BRAND_COLORS.primary;
+
+    const html = generateEmailTemplate({
+      title: 'Recording Ready for Review',
+      preheader: `${assignee.name || assignee.email} submitted a recording - AI Score: ${analysisResults.score.toFixed(0)}%`,
+      content: `
+        <p>Hi ${reviewer.name || reviewer.email},</p>
+        <p><strong>${assignee.name || assignee.email}</strong> has submitted a recording for your review. AI analysis is complete.</p>
+
+        ${createInfoCard(`
+          <div style="text-align: center; padding: 10px 0; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb;">
+            <div style="font-size: 32px; font-weight: bold; color: ${verdictColor};">${analysisResults.score.toFixed(0)}%</div>
+            <div style="font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">${analysisResults.verdictText}</div>
+          </div>
+          ${createDetailsList([
+            { label: 'Task', value: task.title },
+            { label: 'Submitted by', value: assignee.name || assignee.email },
+            { label: 'Priority', value: (task.priority || 'normal').toUpperCase() },
+          ])}
+        `, verdictColor)}
+
+        <p>Please review the recording and the AI analysis results, then approve or provide feedback.</p>
+      `,
+      ctaButton: {
+        text: 'Review Recording',
+        url: `${frontendUrl}/tasks/${task.id}/review`,
+        color: verdictColor,
+      },
+    });
+
+    await this.sendEmail({ to: reviewer.email, subject, html });
+    logger.info(`Review notification with analysis sent to ${reviewer.email} for task ${task.id}`);
+  }
+
   // Send task rejection notification
   async sendTaskRejectionEmail(task: any, reviewer: any, assignee: any, feedback: string): Promise<void> {
     const subject = `Task Needs Revision: ${task.title}`;

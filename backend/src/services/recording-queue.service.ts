@@ -13,7 +13,6 @@ import { db } from '../config/database';
 import { transcriptionQueueHelpers, transcodeQueueHelpers, thumbnailQueueHelpers, TranscodeQuality } from '../queues';
 import pricingService from './pricing.service';
 import { logger } from '../utils/logger';
-import { recordingNotificationService } from './recording-notification.service';
 
 /**
  * Recording interface (minimal fields needed for queue operations)
@@ -26,20 +25,19 @@ interface Recording {
 export class RecordingQueueService {
   /**
    * Queue all post-upload operations for a recording
-   * Includes: notifications, transcription, thumbnails, transcoding
+   * Includes: transcription, thumbnails, transcoding
+   * Note: Reviewer notification is now sent AFTER AI analysis completes (in analysis.processor.ts)
    */
   async queuePostUploadOperations(
     recordingId: string,
-    recording: Recording,
+    _recording: Recording,
     fileUrl: string,
     userId: string,
     organizationId: string,
     orgSlug: string
   ): Promise<void> {
-    // Send email notification to reviewer (non-blocking)
-    recordingNotificationService.sendReviewerNotification(recording, fileUrl, userId).catch(err => {
-      logger.error('Failed to send review notification:', err);
-    });
+    // Reviewer email notification is now sent after AI analysis completes
+    // See analysis.processor.ts onCompleted() method
 
     // Queue transcription job if feature is available (non-blocking)
     this.queueTranscriptionIfEnabled(recordingId, fileUrl, userId, organizationId, orgSlug).catch(err => {

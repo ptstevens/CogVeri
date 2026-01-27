@@ -305,8 +305,11 @@ const TaskReview: React.FC = () => {
   }
 
   const isReviewer = user?.id === task?.reviewed_by;
+  const isAdmin = user?.org_role?.toLowerCase() === 'owner' ||
+                  user?.org_role?.toLowerCase() === 'admin' ||
+                  user?.is_system_admin === true;
 
-  if (!isReviewer && user?.role !== 'admin') {
+  if (!isReviewer && !isAdmin) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">

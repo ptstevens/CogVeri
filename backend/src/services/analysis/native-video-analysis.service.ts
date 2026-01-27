@@ -5,7 +5,7 @@
  * This provides better accuracy for temporal actions, motion, and context.
  */
 
-import { GoogleAIFileManager, FileMetadataResponse } from '@google/generative-ai/server';
+import { GoogleAIFileManager, FileMetadataResponse, FileState } from '@google/generative-ai/server';
 import { getVisionAnalysisModel, estimateCost, TokenUsage, type GenerativeModel } from '../../config/gemini';
 import { RubricStep, VisualEvidence, StepScoreValue } from '../../queues/types/job-types';
 import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
@@ -205,12 +205,12 @@ export class NativeVideoAnalysisService {
     while (Date.now() - startTime < this.MAX_PROCESSING_WAIT_MS) {
       const file = await this.fileManager.getFile(fileName);
 
-      if (file.state === 'ACTIVE') {
+      if (file.state === FileState.ACTIVE) {
         logger.info(`Video ready for analysis: ${fileName}`);
         return;
       }
 
-      if (file.state === 'FAILED') {
+      if (file.state === FileState.FAILED) {
         const errorObj = file as unknown as { error?: { message?: string } };
         throw new Error(`Video processing failed: ${errorObj.error?.message || 'Unknown error'}`);
       }

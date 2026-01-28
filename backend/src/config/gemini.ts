@@ -31,8 +31,9 @@ const modelCache: Map<string, GenerativeModel> = new Map();
  */
 export const GEMINI_MODELS = {
   // Primary model for analysis - best balance of quality and cost
-  FLASH: 'gemini-2.0-flash-exp',
-  // Fallback model
+  // Note: gemini-2.0-flash-exp was deprecated, using stable version
+  FLASH: 'gemini-2.0-flash',
+  // Fallback model (always available)
   FLASH_LEGACY: 'gemini-1.5-flash',
   // For complex reasoning (higher cost)
   PRO: 'gemini-1.5-pro',

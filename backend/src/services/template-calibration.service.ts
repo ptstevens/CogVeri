@@ -290,8 +290,11 @@ class TemplateCalibrationService {
       return { status: null, baselineScore: null, calibratedAt: null, stepsNeedingReview: [] };
     }
 
+    // baseline_step_scores is JSONB - may be already parsed by Knex
     const stepScores: BaselineStepScore[] = template.baseline_step_scores
-      ? JSON.parse(template.baseline_step_scores)
+      ? (typeof template.baseline_step_scores === 'string'
+          ? JSON.parse(template.baseline_step_scores)
+          : template.baseline_step_scores)
       : [];
 
     const stepsNeedingReview = stepScores.filter((s) => s.numericScore < 1.0).map((s) => s.stepId);
@@ -339,7 +342,10 @@ class TemplateCalibrationService {
       return [];
     }
 
-    return JSON.parse(template.baseline_step_scores);
+    // baseline_step_scores is JSONB - may be already parsed by Knex
+    return typeof template.baseline_step_scores === 'string'
+      ? JSON.parse(template.baseline_step_scores)
+      : template.baseline_step_scores;
   }
 
   /**

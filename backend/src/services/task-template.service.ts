@@ -599,7 +599,12 @@ class TaskTemplateService {
       // Calibration fields
       calibration_status: row.calibration_status || null,
       baseline_score: row.baseline_score ? parseFloat(row.baseline_score) : null,
-      baseline_step_scores: row.baseline_step_scores ? JSON.parse(row.baseline_step_scores) : null,
+      // baseline_step_scores is JSONB - Knex may return it already parsed or as string
+      baseline_step_scores: row.baseline_step_scores
+        ? (typeof row.baseline_step_scores === 'string'
+            ? JSON.parse(row.baseline_step_scores)
+            : row.baseline_step_scores)
+        : null,
       calibrated_at: row.calibrated_at || null,
       source_recording_id: row.source_recording_id || null,
     };

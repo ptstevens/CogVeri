@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save, RotateCcw, Settings, Sparkles, Lock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, Settings, Sparkles, Lock, CheckCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { RubricBuilderProvider, useRubricBuilder } from '../../components/rubric/RubricBuilderProvider';
 import { RubricStepList } from '../../components/rubric/RubricStepList';
@@ -141,6 +141,27 @@ function RubricBuilderContent() {
     },
   });
 
+  // Delete draft template mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return api.delete(`/templates/${templateId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+      toast.success('Draft template deleted successfully');
+      navigate('/templates');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to delete template');
+    },
+  });
+
+  const handleDeleteDraft = () => {
+    if (window.confirm('Are you sure you want to delete this draft template? This will also delete the rubric and any associated video. This action cannot be undone.')) {
+      deleteMutation.mutate();
+    }
+  };
+
   const handleActivate = () => {
     // Validate first
     if (!validateRubric()) {
@@ -228,26 +249,28 @@ function RubricBuilderContent() {
                 <span className="text-sm text-amber-600">Unsaved changes</span>
               )}
 
-              {/* Generate from Video button - feature gated */}
-              {canUseAiGeneration ? (
-                <button
-                  onClick={() => setIsGenerateModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
-                  title="Generate rubric from video using AI"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="hidden sm:inline">Generate from Video</span>
-                </button>
-              ) : subscription?.tier ? (
-                <button
-                  onClick={() => navigate('/settings/billing')}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  title="Upgrade to Professional or higher to use AI generation"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span className="hidden sm:inline">AI Generation</span>
-                </button>
-              ) : null}
+              {/* Generate from Video button - feature gated, only for active templates */}
+              {template?.isActive && (
+                canUseAiGeneration ? (
+                  <button
+                    onClick={() => setIsGenerateModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                    title="Generate rubric from video using AI"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Generate from Video</span>
+                  </button>
+                ) : subscription?.tier ? (
+                  <button
+                    onClick={() => navigate('/settings/billing')}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    title="Upgrade to Professional or higher to use AI generation"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span className="hidden sm:inline">AI Generation</span>
+                  </button>
+                ) : null
+              )}
 
               <button
                 onClick={handleDiscard}
@@ -285,14 +308,24 @@ function RubricBuilderContent() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={handleActivate}
-                disabled={activateMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
-              >
-                <CheckCircle className="w-4 h-4" />
-                {activateMutation.isPending ? 'Activating...' : 'Activate Template'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleDeleteDraft}
+                  disabled={deleteMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {deleteMutation.isPending ? 'Deleting...' : 'Delete Draft'}
+                </button>
+                <button
+                  onClick={handleActivate}
+                  disabled={activateMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {activateMutation.isPending ? 'Activating...' : 'Activate Template'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

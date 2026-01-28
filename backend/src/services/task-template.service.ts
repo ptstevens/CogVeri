@@ -277,26 +277,63 @@ class TaskTemplateService {
   }
 
   /**
-   * Delete (soft delete) a template
+   * Delete a template
+   * - Draft templates (!isActive): Hard delete with cleanup of video and evidence
+   * - Active templates: Soft delete (set isActive to false)
    */
-  async deleteTemplate(templateId: string): Promise<void> {
+  async deleteTemplate(templateId: string, hardDelete = false): Promise<void> {
     try {
-      logger.info(`🗑️ Deleting template: ${templateId}`);
+      logger.info(`🗑️ Deleting template: ${templateId}`, { hardDelete });
 
       // Check if this is a system default - prevent deletion of protected defaults
       const template = await this.getTemplate(templateId);
-      if (template?.isSystemDefault) {
+      if (!template) {
+        throw new Error('Template not found');
+      }
+      if (template.isSystemDefault) {
         throw new Error('Cannot delete system default templates');
       }
 
-      await db('task_templates')
-        .where('id', templateId)
-        .update({
-          is_active: false,
-          updated_at: new Date()
-        });
+      // For draft templates or explicit hard delete, do full cleanup
+      if (!template.isActive || hardDelete) {
+        logger.info(`🗑️ Hard deleting draft template: ${templateId}`);
 
-      logger.info(`✅ Template deleted: ${templateId}`);
+        // 1. Delete template evidence
+        const evidenceDeleted = await db('template_evidence')
+          .where('template_id', templateId)
+          .delete();
+        logger.info(`  Deleted ${evidenceDeleted} evidence records`);
+
+        // 2. Delete source video from S3 if exists
+        const metadata = template.metadata as { tempVideoId?: string; generatedFrom?: string } | null;
+        if (metadata?.tempVideoId && metadata?.generatedFrom === 'video') {
+          try {
+            const { rubricGenerationService } = await import('./rubric-generation.service');
+            await rubricGenerationService.cleanupTempVideo(metadata.tempVideoId);
+            logger.info(`  Cleaned up source video: ${metadata.tempVideoId}`);
+          } catch (cleanupError) {
+            // Don't fail delete if video cleanup fails - video may already be gone
+            logger.warn(`  Failed to cleanup source video: ${metadata.tempVideoId}`, { error: cleanupError });
+          }
+        }
+
+        // 3. Hard delete the template record
+        await db('task_templates')
+          .where('id', templateId)
+          .delete();
+
+        logger.info(`✅ Draft template hard deleted: ${templateId}`);
+      } else {
+        // Soft delete for active templates (preserve for historical reference)
+        await db('task_templates')
+          .where('id', templateId)
+          .update({
+            is_active: false,
+            updated_at: new Date()
+          });
+
+        logger.info(`✅ Template soft deleted: ${templateId}`);
+      }
     } catch (error) {
       logger.error('Error deleting template:', error);
       throw error;

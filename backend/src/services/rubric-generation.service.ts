@@ -37,6 +37,7 @@ import { logger } from '../utils/logger';
 import { BadRequestError, NotFoundError, InternalServerError } from '../utils/AppError';
 import { RubricStep, SpeechCriteria, VisualCriteria, EvidenceType } from '../queues/types/job-types';
 import { transcriptionQueueHelpers } from '../queues/definitions/transcription.queue';
+import { evidenceExtractionService } from './evidence-extraction.service';
 
 // Configuration constants
 const CONFIG = {
@@ -840,6 +841,26 @@ class RubricGenerationService {
           customContext: options.customContext,
         });
       totalTokensUsed += rubricTokens;
+
+      // Extract and store ground truth evidence for later comparison (Phase 2)
+      // This enables direct similarity scoring between template and submission videos
+      try {
+        await evidenceExtractionService.extractAndStoreEvidence({
+          tempVideoId,
+          rubricSteps,
+          transcriptSegments: segments,
+          frameDescriptions,
+          fullTranscript: transcriptText,
+        });
+        logger.info('Evidence extracted and stored for rubric generation', { tempVideoId });
+      } catch (evidenceError) {
+        // Don't fail rubric generation if evidence extraction fails
+        // The analysis will fall back to abstract criteria matching
+        logger.warn('Failed to extract evidence, analysis will use abstract matching', {
+          tempVideoId,
+          error: evidenceError,
+        });
+      }
 
       const estimatedCost = estimateCost(
         { inputTokens: totalTokensUsed * 0.8, outputTokens: totalTokensUsed * 0.2, totalTokens: totalTokensUsed },

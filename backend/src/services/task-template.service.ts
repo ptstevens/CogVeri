@@ -1,5 +1,6 @@
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
+import { evidenceExtractionService } from './evidence-extraction.service';
 
 export interface CreateTemplateInput {
   title: string;
@@ -19,6 +20,7 @@ export interface CreateTemplateInput {
   createdBy: string;
   isSystemDefault?: boolean;
   isActive?: boolean; // false = draft template, needs review before live
+  tempVideoId?: string; // If provided, link evidence from rubric generation
 }
 
 export interface UpdateTemplateInput {
@@ -155,6 +157,27 @@ class TaskTemplateService {
 
       const templateId = result.id;
       logger.info(`✅ Template created: ${templateId}`);
+
+      // Link evidence from rubric generation if tempVideoId is provided
+      if (input.tempVideoId) {
+        try {
+          const linkedCount = await evidenceExtractionService.linkEvidenceToTemplate(
+            input.tempVideoId,
+            templateId.toString()
+          );
+          logger.info(`🔗 Linked ${linkedCount} evidence records to template`, {
+            templateId,
+            tempVideoId: input.tempVideoId,
+          });
+        } catch (evidenceError) {
+          // Don't fail template creation if evidence linking fails
+          logger.warn('Failed to link evidence to template', {
+            templateId,
+            tempVideoId: input.tempVideoId,
+            error: evidenceError,
+          });
+        }
+      }
 
       const template = await this.getTemplate(templateId.toString());
       if (!template) {

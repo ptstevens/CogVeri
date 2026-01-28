@@ -81,7 +81,7 @@ class TemplateController {
 
       // Validate required fields
       const body = req.body as Record<string, unknown>;
-      const { title, type } = body as { title?: string; type?: string };
+      const { title, type, tempVideoId } = body as { title?: string; type?: string; tempVideoId?: string };
       if (!title || !type) {
         throw new BadRequestError('Title and type are required');
       }
@@ -95,6 +95,7 @@ class TemplateController {
         organizationId,
         createdBy: userId,
         isSystemDefault: false, // Organization-specific templates are not system defaults
+        tempVideoId, // Link evidence from rubric generation if provided
       });
 
       res.status(201).json({

@@ -64,6 +64,12 @@ export interface TaskTemplate {
   isSystemDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Calibration fields - set after template video is analyzed against its own rubric
+  calibration_status?: 'pending' | 'in_progress' | 'completed' | 'failed' | 'needs_review' | null;
+  baseline_score?: number | null;
+  baseline_step_scores?: any | null;
+  calibrated_at?: Date | null;
+  source_recording_id?: string | null;
 }
 
 class TaskTemplateService {
@@ -589,7 +595,13 @@ class TaskTemplateService {
       isActive: row.is_active,
       isSystemDefault: row.is_system_default,
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      // Calibration fields
+      calibration_status: row.calibration_status || null,
+      baseline_score: row.baseline_score ? parseFloat(row.baseline_score) : null,
+      baseline_step_scores: row.baseline_step_scores ? JSON.parse(row.baseline_step_scores) : null,
+      calibrated_at: row.calibrated_at || null,
+      source_recording_id: row.source_recording_id || null,
     };
   }
 }

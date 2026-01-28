@@ -46,6 +46,19 @@ export interface TaskTemplate {
     copiedFromSystemDefault?: string;
     [key: string]: any;
   };
+  // Calibration fields - set after template video is analyzed against its own rubric
+  calibration_status?: 'pending' | 'in_progress' | 'completed' | 'failed' | 'needs_review' | null;
+  baseline_score?: number | null;
+  baseline_step_scores?: Array<{
+    stepId: string;
+    stepTitle: string;
+    score: string;
+    numericScore: number;
+    confidence: number;
+    reasoning?: string;
+  }> | null;
+  calibrated_at?: string | null;
+  source_recording_id?: string | null;
 }
 
 export interface CreateTemplateDto {

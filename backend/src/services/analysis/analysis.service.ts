@@ -19,6 +19,7 @@ import { visualAnalysisService, VisualAnalysisResult } from './visual-analysis.s
 import { frameExtractionService } from './frame-extraction.service';
 import { getNativeVideoAnalysisService } from './native-video-analysis.service';
 import { similarityScoringService, SimilarityResult, SimilarityAnalysisResponse } from './similarity-scoring.service';
+import { templateCalibrationService } from '../template-calibration.service';
 import {
   RubricStep,
   StepScoreResult,
@@ -279,12 +280,51 @@ class AnalysisService {
     // ============================================================
     await this.updateProgress(analysisJobId, 'combining_results', 80, 'Calculating scores...');
 
-    const stepResults = this.combineResults(
+    let stepResults = this.combineResults(
       speechResults,
       visualResults,
       rubricSteps,
       similarityResponse?.results
     );
+
+    // ============================================================
+    // STAGE 3.5: Score Normalization (Calibration)
+    // ============================================================
+    // If template has calibration data, normalize scores relative to baseline
+    let normalizationApplied = false;
+    if (templateId) {
+      try {
+        const calibrationStatus = await templateCalibrationService.getCalibrationStatus(templateId);
+
+        if (calibrationStatus.status === 'completed' || calibrationStatus.status === 'needs_review') {
+          const baselineStepScores = await templateCalibrationService.getBaselineStepScores(templateId);
+
+          if (baselineStepScores.length > 0 && calibrationStatus.baselineScore !== null && calibrationStatus.baselineScore < 100) {
+            // Normalize step scores relative to baseline
+            stepResults = stepResults.map((result) => {
+              const normalized = templateCalibrationService.normalizeStepScore({
+                stepId: result.rubricStepId,
+                rawNumericScore: result.weightedScore / (rubricSteps.find(s => s.id === result.rubricStepId)?.weight || 5) * 10,
+                baselineStepScores,
+              });
+
+              return {
+                ...result,
+                aiReasoning: `${result.aiReasoning} | Normalized: baseline=${(normalized.baselineScore * 100).toFixed(0)}%`,
+              };
+            });
+
+            normalizationApplied = true;
+            logger.info('Applied calibration normalization', {
+              templateId,
+              baselineScore: calibrationStatus.baselineScore,
+            });
+          }
+        }
+      } catch (calibrationError) {
+        logger.warn('Failed to apply calibration normalization', { templateId, error: calibrationError });
+      }
+    }
 
     // ============================================================
     // STAGE 4: Calculate Verdict
@@ -295,6 +335,28 @@ class AnalysisService {
       passingScore,
       scoringMethod
     );
+
+    // Apply overall score normalization if calibration data exists
+    let finalOverallScore = overallScore;
+    if (normalizationApplied && templateId) {
+      try {
+        const calibrationStatus = await templateCalibrationService.getCalibrationStatus(templateId);
+        if (calibrationStatus.baselineScore !== null && calibrationStatus.baselineScore < 100) {
+          const normalized = templateCalibrationService.normalizeScore({
+            rawScore: overallScore,
+            baselineScore: calibrationStatus.baselineScore,
+          });
+          finalOverallScore = normalized.normalizedScore;
+          logger.info('Normalized overall score', {
+            raw: overallScore,
+            normalized: finalOverallScore,
+            baselineScore: calibrationStatus.baselineScore,
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to normalize overall score', { error });
+      }
+    }
 
     // Generate summary
     const summary = this.generateSummary(stepResults, verdict);
@@ -313,12 +375,12 @@ class AnalysisService {
       });
 
     logger.info(
-      `Analysis complete: ${verdict} (${overallScore.toFixed(1)}%), ` +
+      `Analysis complete: ${verdict} (${finalOverallScore.toFixed(1)}%${normalizationApplied ? ' normalized' : ''}), ` +
       `tokens: ${totalTokens.totalTokens}, cost: $${estimatedCost.toFixed(4)}`
     );
 
     return {
-      overallScore,
+      overallScore: finalOverallScore,
       verdict,
       confidence,
       stepResults,

@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
 import { evidenceExtractionService } from './evidence-extraction.service';
+import { templateCalibrationService } from './template-calibration.service';
 
 export interface CreateTemplateInput {
   title: string;
@@ -21,6 +22,8 @@ export interface CreateTemplateInput {
   isSystemDefault?: boolean;
   isActive?: boolean; // false = draft template, needs review before live
   tempVideoId?: string; // If provided, link evidence from rubric generation
+  sourceRecordingId?: string; // Template video recording ID for calibration
+  runCalibration?: boolean; // Whether to run calibration immediately (default: false)
 }
 
 export interface UpdateTemplateInput {
@@ -132,6 +135,9 @@ class TaskTemplateService {
     try {
       logger.info(`📋 Creating new task template: ${input.title}`);
 
+      // Determine calibration status based on source recording
+      const calibrationStatus = input.sourceRecordingId ? 'pending' : null;
+
       // PostgreSQL requires .returning('id') to get the inserted ID
       const [result] = await db('task_templates').insert({
         title: input.title,
@@ -151,6 +157,8 @@ class TaskTemplateService {
         created_by: input.createdBy,
         is_active: input.isActive ?? true, // Default to active, but allow draft templates
         is_system_default: input.isSystemDefault || false,
+        source_recording_id: input.sourceRecordingId || null,
+        calibration_status: calibrationStatus,
         created_at: new Date(),
         updated_at: new Date()
       }).returning('id');
@@ -175,6 +183,33 @@ class TaskTemplateService {
             templateId,
             tempVideoId: input.tempVideoId,
             error: evidenceError,
+          });
+        }
+      }
+
+      // Run calibration if requested and we have a source recording
+      if (input.runCalibration && input.sourceRecordingId && input.organizationId) {
+        try {
+          // Run calibration asynchronously - don't block template creation
+          templateCalibrationService.calibrateTemplate({
+            templateId: templateId.toString(),
+            sourceRecordingId: input.sourceRecordingId,
+            organizationId: input.organizationId,
+          }).then((result) => {
+            logger.info(`🎯 Template calibration completed`, {
+              templateId,
+              status: result.status,
+              baselineScore: result.baselineScore,
+            });
+          }).catch((error) => {
+            logger.error('Template calibration failed (async)', { templateId, error });
+          });
+          logger.info(`🔄 Template calibration started`, { templateId });
+        } catch (calibrationError) {
+          // Don't fail template creation if calibration fails to start
+          logger.warn('Failed to start template calibration', {
+            templateId,
+            error: calibrationError,
           });
         }
       }

@@ -66,8 +66,9 @@ class TemplateCalibrationService {
     templateId: string;
     sourceRecordingId: string;
     organizationId: string;
+    persistSourceRecording?: boolean; // If false, don't store source_recording_id (recording will be deleted)
   }): Promise<CalibrationResult> {
-    const { templateId, sourceRecordingId, organizationId } = params;
+    const { templateId, sourceRecordingId, organizationId, persistSourceRecording = true } = params;
 
     logger.info('Starting template calibration', { templateId, sourceRecordingId });
 
@@ -143,16 +144,22 @@ class TemplateCalibrationService {
       }
 
       // Store calibration results
-      await db('task_templates').where('id', templateId).update({
+      const updateData: Record<string, unknown> = {
         baseline_analysis_results: JSON.stringify(analysisResult),
         baseline_score: analysisResult.overallScore,
         baseline_step_scores: JSON.stringify(stepScores),
         calibration_status: status,
         calibration_error: null,
         calibrated_at: new Date(),
-        source_recording_id: sourceRecordingId,
         updated_at: new Date(),
-      });
+      };
+
+      // Only persist source_recording_id if the recording will be kept
+      if (persistSourceRecording) {
+        updateData.source_recording_id = sourceRecordingId;
+      }
+
+      await db('task_templates').where('id', templateId).update(updateData);
 
       // Update analysis job status
       await db('analysis_jobs').where('id', analysisJobId).update({

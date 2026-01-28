@@ -136,10 +136,10 @@ export const QUEUE_CONFIGS = {
     name: 'rubric-template-generation',
     defaultJobOptions: {
       ...DEFAULT_JOB_OPTIONS,
-      attempts: 2, // Expensive AI calls, limit retries
+      attempts: 3, // Allow retries for infrastructure failures (Gemini calls have internal retry)
       backoff: {
         type: 'exponential' as const,
-        delay: 30000, // 30 second initial delay for rate limits
+        delay: 60000, // 1 minute initial delay between job retries
       },
       removeOnComplete: {
         age: 7 * 24 * 60 * 60, // Keep for 7 days

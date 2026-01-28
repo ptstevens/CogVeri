@@ -9,6 +9,7 @@ import { RubricStep, VisualEvidence, StepScoreValue, ExtractedFrame } from '../.
 import { buildVisualAnalysisPrompt } from './prompts/analysis.prompts';
 import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
+import { retryGeminiCall } from '../../utils/gemini-retry';
 import { getS3Client, isS3Available, getS3Bucket } from '../../config/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { geminiRateLimiter } from './gemini-rate-limiter';
@@ -168,11 +169,15 @@ class VisualAnalysisService {
     // Fetch system prompt (from DB with fallback to hardcoded)
     const systemPrompt = await getVisualAnalysisPrompt();
 
-    const result = await this.model.generateContent([
-      { text: systemPrompt },
-      ...validImageParts,
-      { text: prompt },
-    ]);
+    // Call Gemini (with retry for rate limits)
+    const result = await retryGeminiCall(
+      () => this.model.generateContent([
+        { text: systemPrompt },
+        ...validImageParts,
+        { text: prompt },
+      ]),
+      'visual analysis'
+    );
 
     const response = result.response;
     const responseText = response.text();

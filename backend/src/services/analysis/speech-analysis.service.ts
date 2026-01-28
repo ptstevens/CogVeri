@@ -9,6 +9,7 @@ import { RubricStep, SpeechEvidence, StepScoreValue } from '../../queues/types/j
 import { buildSpeechAnalysisPrompt } from './prompts/analysis.prompts';
 import { getSpeechAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
+import { retryGeminiCall } from '../../utils/gemini-retry';
 import { geminiRateLimiter } from './gemini-rate-limiter';
 
 /**
@@ -122,11 +123,14 @@ class SpeechAnalysisService {
       // Fetch system prompt (from DB with fallback to hardcoded)
       const systemPrompt = await getSpeechAnalysisPrompt();
 
-      // Call Gemini
-      const result = await this.model.generateContent([
-        { text: systemPrompt },
-        { text: prompt },
-      ]);
+      // Call Gemini (with retry for rate limits)
+      const result = await retryGeminiCall(
+        () => this.model.generateContent([
+          { text: systemPrompt },
+          { text: prompt },
+        ]),
+        'speech analysis'
+      );
 
       const response = result.response;
       const responseText = response.text();

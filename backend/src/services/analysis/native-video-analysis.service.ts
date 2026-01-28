@@ -10,6 +10,7 @@ import { getVisionAnalysisModel, estimateCost, TokenUsage, type GenerativeModel 
 import { RubricStep, VisualEvidence, StepScoreValue } from '../../queues/types/job-types';
 import { getVisualAnalysisPrompt } from './prompts/prompt-resolver';
 import { logger } from '../../utils/logger';
+import { retryGeminiCall } from '../../utils/gemini-retry';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -238,17 +239,20 @@ export class NativeVideoAnalysisService {
     // Fetch system prompt
     const systemPrompt = await getVisualAnalysisPrompt();
 
-    // Call Gemini with the video file
-    const result = await this.model.generateContent([
-      { text: systemPrompt },
-      {
-        fileData: {
-          fileUri: file.uri,
-          mimeType: file.mimeType,
+    // Call Gemini with the video file (with retry for rate limits)
+    const result = await retryGeminiCall(
+      () => this.model.generateContent([
+        { text: systemPrompt },
+        {
+          fileData: {
+            fileUri: file.uri,
+            mimeType: file.mimeType,
+          },
         },
-      },
-      { text: prompt },
-    ]);
+        { text: prompt },
+      ]),
+      'native video analysis'
+    );
 
     const response = result.response;
     const responseText = response.text();

@@ -115,16 +115,14 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         createdBy: userId,
         isActive: false, // Draft - needs review before going live
         tempVideoId, // Pass at top level to trigger evidence linking
-        sourceRecordingId: tempRecordingId, // The template video for calibration
-        runCalibration: true, // Auto-calibrate: run template video against its own rubric
+        // Note: sourceRecordingId not passed because temp recording is deleted after rubric generation
+        // Auto-calibration would require keeping the source video - future enhancement
       });
 
-      logger.info('Template created as draft with auto-calibration', {
+      logger.info('Template created as draft', {
         jobId: job.id,
         templateId: template.id,
         templateTitle: template.title,
-        sourceRecordingId: tempRecordingId,
-        calibrationStatus: 'pending',
       });
 
       // Step 4: Send notification to user
@@ -135,7 +133,7 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         organizationId,
         type: 'rubric_template_ready',
         title: 'Task Template Ready for Review',
-        message: `Your task template "${templateTitle}" has been generated and is ready for review. Calibration is running in the background to verify accuracy.`,
+        message: `Your task template "${templateTitle}" has been generated and is ready for review.`,
         entityType: 'task_template',
         entityId: template.id,
         actionUrl: `/templates/${template.id}/rubric`,
@@ -144,7 +142,6 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
           templateTitle,
           rubricStepsCount: result.rubricSteps.length,
           confidence: result.confidence,
-          calibrationStatus: 'in_progress',
         },
       });
 

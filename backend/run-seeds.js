@@ -163,6 +163,30 @@ async function runSeeds() {
       ]);
       console.log('   ✓ 2 users created (admin@cogveri.com, cogveri.blitz180@passmail.net)');
 
+      // Insert organization members (critical for multi-tenant membership checks)
+      console.log('👥 Creating organization memberships...');
+      await db('organization_members').insert([
+        {
+          user_id: '8292c9df-7547-4277-86fd-8ca0127c5dd0',
+          organization_id: '12e89168-7afa-445c-9f90-ff23b4e37c59',
+          role: 'owner',
+          status: 'active',
+          joined_at: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
+        },
+        {
+          user_id: '664be585-f639-4304-9871-be005ee34cac',
+          organization_id: '12e89168-7afa-445c-9f90-ff23b4e37c59',
+          role: 'admin',
+          status: 'active',
+          joined_at: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
+        }
+      ]);
+      console.log('   ✓ Organization memberships created');
+
       // Insert rate limit rules
       console.log('⚡ Creating rate limit rules...');
       await db('rate_limit_rules').insert([

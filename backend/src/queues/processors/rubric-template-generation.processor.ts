@@ -40,7 +40,7 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
   protected async process(job: Job<RubricTemplateGenerationJobData>): Promise<RubricTemplateGenerationJobResult> {
     const {
       tempVideoId,
-      tempRecordingId, // The actual recording ID - used for calibration
+      tempRecordingId: _tempRecordingId, // Reserved for future calibration use
       organizationId,
       userId,
       storageKey: _storageKey, // Already stored in status

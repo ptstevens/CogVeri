@@ -21,6 +21,10 @@ import { getNativeVideoAnalysisService } from './native-video-analysis.service';
 import { similarityScoringService, SimilarityResult, SimilarityAnalysisResponse } from './similarity-scoring.service';
 import { templateCalibrationService } from '../template-calibration.service';
 import {
+  analysisObservabilityService,
+  StepDebugDetail,
+} from './analysis-observability.service';
+import {
   RubricStep,
   StepScoreResult,
   AnalysisVerdict,
@@ -92,6 +96,15 @@ class AnalysisService {
 
     logger.info(`Starting analysis for recording ${recordingId} with ${rubricSteps.length} steps`);
 
+    // Initialize observability tracking
+    analysisObservabilityService.startAnalysis({
+      analysisJobId,
+      recordingId,
+      organizationId,
+      templateId: undefined, // Will be set after we determine it
+      isCalibrationRun: false,
+    });
+
     // ============================================================
     // STAGE 0: Similarity Analysis (Direct Template Comparison)
     // ============================================================
@@ -105,6 +118,7 @@ class AnalysisService {
     }
 
     if (templateId) {
+      analysisObservabilityService.startStage('similarity_analysis');
       try {
         similarityResponse = await similarityScoringService.analyzeSimilarity({
           templateId,
@@ -124,9 +138,12 @@ class AnalysisService {
             avgSimilarity: similarityResponse.results.reduce((sum, r) => sum + r.overallSimilarity, 0) / similarityResponse.results.length,
           });
         }
+        analysisObservabilityService.recordSimilarityAnalysis(similarityResponse);
       } catch (error) {
         logger.warn('Similarity analysis failed, will use AI-only scoring', { error, templateId });
+        analysisObservabilityService.recordError('similarity_analysis', error instanceof Error ? error : String(error), true);
       }
+      analysisObservabilityService.endStage('similarity_analysis');
     }
 
     // ============================================================
@@ -135,6 +152,7 @@ class AnalysisService {
     let speechResults: SpeechAnalysisResult[] = [];
 
     if (!options?.skipSpeechAnalysis) {
+      analysisObservabilityService.startStage('speech_analysis');
       await this.updateProgress(analysisJobId, 'analyzing_speech', 10, 'Analyzing transcript...');
 
       const speechResponse = await speechAnalysisService.analyzeTranscript(
@@ -147,6 +165,13 @@ class AnalysisService {
       totalTokens.inputTokens += speechResponse.tokensUsed.inputTokens;
       totalTokens.outputTokens += speechResponse.tokensUsed.outputTokens;
       totalTokens.totalTokens += speechResponse.tokensUsed.totalTokens;
+
+      // Record speech analysis debug info
+      analysisObservabilityService.recordSpeechAnalysis({
+        inputTokens: speechResponse.tokensUsed.inputTokens,
+        outputTokens: speechResponse.tokensUsed.outputTokens,
+      });
+      analysisObservabilityService.endStage('speech_analysis');
 
       await db('analysis_jobs')
         .where('id', analysisJobId)
@@ -167,6 +192,7 @@ class AnalysisService {
     const useNativeVideo = options?.useNativeVideo !== false;
 
     if (!options?.skipVisualAnalysis && hasVisualSteps && isGeminiConfigured()) {
+      analysisObservabilityService.startStage('visual_analysis');
       // Get video URL - generate fresh signed URL if using S3
       let videoUrl = recording.file_url;
 
@@ -217,8 +243,16 @@ class AnalysisService {
 
             logger.info(`Native video analysis complete for ${recordingId}: ${nativeResponse.processingTimeMs}ms`);
 
+            // Record visual analysis debug info
+            analysisObservabilityService.recordVisualAnalysis({
+              inputTokens: nativeResponse.tokensUsed.inputTokens,
+              outputTokens: nativeResponse.tokensUsed.outputTokens,
+              durationMs: nativeResponse.processingTimeMs,
+            });
+
           } catch (error) {
             logger.error('Native video analysis failed, falling back to frame-based:', error);
+            analysisObservabilityService.recordError('native_video_analysis', error instanceof Error ? error : String(error), true);
             nativeAnalysisFailed = true;
           }
         }
@@ -256,11 +290,20 @@ class AnalysisService {
             totalTokens.outputTokens += visualResponse.tokensUsed.outputTokens;
             totalTokens.totalTokens += visualResponse.tokensUsed.totalTokens;
 
+            // Record visual analysis debug info (frame-based)
+            analysisObservabilityService.recordVisualAnalysis({
+              inputTokens: visualResponse.tokensUsed.inputTokens,
+              outputTokens: visualResponse.tokensUsed.outputTokens,
+              batchCount: frames.length,
+            });
+
           } catch (error) {
             logger.error('Frame-based visual analysis failed:', error);
+            analysisObservabilityService.recordError('frame_based_visual_analysis', error instanceof Error ? error : String(error), false);
           }
         }
       }
+      analysisObservabilityService.endStage('visual_analysis');
 
       await db('analysis_jobs')
         .where('id', analysisJobId)
@@ -278,6 +321,7 @@ class AnalysisService {
     // ============================================================
     // STAGE 3: Combine Results (with Similarity Blending)
     // ============================================================
+    analysisObservabilityService.startStage('score_calculation');
     await this.updateProgress(analysisJobId, 'combining_results', 80, 'Calculating scores...');
 
     let stepResults = this.combineResults(
@@ -318,6 +362,12 @@ class AnalysisService {
             logger.info('Applied calibration normalization', {
               templateId,
               baselineScore: calibrationStatus.baselineScore,
+            });
+
+            // Record normalization info
+            analysisObservabilityService.recordNormalization({
+              applied: true,
+              factor: 100 / calibrationStatus.baselineScore,
             });
           }
         }
@@ -378,6 +428,34 @@ class AnalysisService {
       `Analysis complete: ${verdict} (${finalOverallScore.toFixed(1)}%${normalizationApplied ? ' normalized' : ''}), ` +
       `tokens: ${totalTokens.totalTokens}, cost: $${estimatedCost.toFixed(4)}`
     );
+
+    // End score calculation timing
+    analysisObservabilityService.endStage('score_calculation');
+
+    // Record step debug details
+    const stepDebugDetails: StepDebugDetail[] = stepResults.map((result) => {
+      const similarityResult = similarityResponse?.results.find((r) => r.stepId === result.rubricStepId);
+      return {
+        stepId: result.rubricStepId,
+        stepTitle: result.stepTitle,
+        rawScore: result.score,
+        numericScore: result.weightedScore / (rubricSteps.find((s) => s.id === result.rubricStepId)?.weight || 5) * 10,
+        confidence: result.confidence,
+        aiReasoning: result.aiReasoning,
+        similarityScore: similarityResult?.overallSimilarity,
+        similarityRecommendation: similarityResult?.recommendation,
+      };
+    });
+    analysisObservabilityService.recordStepDetails(stepDebugDetails);
+
+    // Finish observability tracking (saves to database)
+    const stepsPassed = stepResults.filter((r) => r.score === 'YES').length;
+    await analysisObservabilityService.finishAnalysis({
+      overallScore: finalOverallScore,
+      verdict,
+      totalSteps: rubricSteps.length,
+      stepsPassed,
+    });
 
     return {
       overallScore: finalOverallScore,

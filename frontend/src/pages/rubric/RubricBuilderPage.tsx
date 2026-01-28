@@ -286,7 +286,11 @@ function RubricBuilderContent() {
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                {saveMutation.isPending ? 'Saving...' : 'Save'}
+                {saveMutation.isPending
+                  ? 'Saving...'
+                  : template?.isActive
+                    ? 'Save'
+                    : 'Save as Draft'}
               </button>
             </div>
           </div>

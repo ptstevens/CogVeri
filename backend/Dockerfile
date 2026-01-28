@@ -1,6 +1,6 @@
-# Backend Dockerfile - Optimized for Coolify
+# syntax=docker/dockerfile:1.4
+# Backend Dockerfile - Optimized for Coolify with BuildKit caching
 # Coolify provides backend/ directory as the build context
-# Cache bust: 2026-01-13
 # Therefore: . = backend/, so we don't need "backend/" prefix in paths
 #
 # SECURITY NOTE: Do NOT pass secrets as build-time ARGs!
@@ -23,12 +23,11 @@ WORKDIR /app
 # Copy backend package files directly (since context is backend/)
 COPY package*.json ./
 
-# Install ALL dependencies (including devDependencies for TypeScript compilation)
-# Note: Using npm install instead of npm ci because this is a monorepo workspace
-# and the package-lock.json is at the root level, not in the backend directory
-# IMPORTANT: Override NODE_ENV to ensure devDependencies are installed
-# (Coolify passes NODE_ENV=production as build arg which would skip devDeps)
-RUN NODE_ENV=development npm install
+# Install ALL dependencies with BuildKit cache mount
+# --mount=type=cache persists npm cache across builds (even when layers invalidate)
+# This dramatically speeds up builds when Coolify injects ARGs that bust the cache
+RUN --mount=type=cache,target=/root/.npm \
+    NODE_ENV=development npm install
 
 # Copy source code and configuration files (since context is backend/)
 COPY . ./
@@ -54,9 +53,9 @@ WORKDIR /app/backend
 # Copy production package files
 COPY package*.json ./
 
-# Install production dependencies only
-# Use npm install to ensure compatibility with the lock file created in builder stage
-RUN npm install --omit=dev
+# Install production dependencies with BuildKit cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --omit=dev
 
 # Copy compiled application from builder
 COPY --from=builder /app/dist ./dist

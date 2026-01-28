@@ -42,7 +42,7 @@ export const GEMINI_MODELS = {
  * Default generation config for analysis tasks
  */
 export const DEFAULT_GENERATION_CONFIG = {
-  temperature: 0.2, // Low temperature for consistent analysis
+  temperature: 0.0, // Zero for deterministic, reproducible analysis
   topP: 0.8,
   topK: 40,
   maxOutputTokens: 4096,
@@ -157,7 +157,7 @@ export function getTextAnalysisModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
     generationConfig: {
       ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.1, // Very low for consistent scoring
+      temperature: 0.0, // Zero for deterministic, reproducible scoring
       maxOutputTokens: 2048,
     },
   });
@@ -170,7 +170,7 @@ export function getVisionAnalysisModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
     generationConfig: {
       ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.2,
+      temperature: 0.0, // Zero for deterministic, reproducible visual analysis
       maxOutputTokens: 4096,
     },
   });
@@ -184,7 +184,7 @@ export function getRubricGenerationModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
     generationConfig: {
       ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.2, // Slightly higher for creative rubric generation
+      temperature: 0.0, // Zero for deterministic rubric generation - consistency over creativity
       maxOutputTokens: 8192, // Higher limit for complex rubrics with multiple steps
     },
   });

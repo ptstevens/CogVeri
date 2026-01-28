@@ -114,6 +114,7 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         organizationId,
         createdBy: userId,
         isActive: false, // Draft - needs review before going live
+        tempVideoId, // Pass at top level to trigger evidence linking
       });
 
       logger.info('Template created as draft', {

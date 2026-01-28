@@ -149,7 +149,8 @@ function RubricBuilderContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
       toast.success('Draft template deleted successfully');
-      navigate('/templates');
+      // Navigate to organization settings templates tab
+      navigate('/organizations/settings?tab=templates');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to delete template');

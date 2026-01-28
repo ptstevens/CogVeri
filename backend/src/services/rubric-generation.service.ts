@@ -571,8 +571,10 @@ class RubricGenerationService {
       progress: status.progress,
     });
 
-    // If we're in transcribing stage, check actual transcription progress
-    if (status.stage === 'transcribing' && status.tempRecordingId) {
+    // Check actual transcription progress in database
+    // This is critical because Redis may be updated to 'transcription_complete' BEFORE
+    // the callback saves segments to the database (race condition)
+    if ((status.stage === 'transcribing' || status.stage === 'transcription_complete') && status.tempRecordingId) {
       logger.info('[DIAG] Checking database for transcription status', {
         tempVideoId,
         tempRecordingId: status.tempRecordingId,
@@ -657,16 +659,38 @@ class RubricGenerationService {
           const mappedProgress = 10 + Math.floor(transcriptionProgress * 0.4); // 10% to 50%
 
           if (transcriptionStatus.state === 'completed') {
-            // Transcription is complete!
-            const updatedStatus: GenerationStatus = {
-              ...status,
-              stage: 'transcription_complete',
-              progress: 50,
-              message: 'Transcription complete. Ready to generate rubric.',
-              updatedAt: new Date().toISOString(),
-            };
-            await this.updateStatus(tempVideoId, updatedStatus);
-            return updatedStatus;
+            // BullMQ says complete, but verify DATABASE has the data
+            // (there's a race condition between BullMQ completion and callback saving to DB)
+            const dbRecording = await db('recordings')
+              .where('id', status.tempRecordingId)
+              .first('transcription_status', 'transcript_text');
+
+            if (dbRecording?.transcription_status === 'completed' && dbRecording?.transcript_text) {
+              // Database confirmed complete - safe to proceed
+              const updatedStatus: GenerationStatus = {
+                ...status,
+                stage: 'transcription_complete',
+                progress: 50,
+                message: 'Transcription complete. Ready to generate rubric.',
+                updatedAt: new Date().toISOString(),
+              };
+              await this.updateStatus(tempVideoId, updatedStatus);
+              return updatedStatus;
+            } else {
+              // BullMQ says complete but DB doesn't have data yet - keep waiting
+              logger.info('[DIAG] BullMQ complete but DB not ready yet, continuing to wait', {
+                tempVideoId,
+                dbStatus: dbRecording?.transcription_status,
+                hasTranscript: !!dbRecording?.transcript_text,
+              });
+              // Return current status (still transcribing) - caller will retry
+              return {
+                ...status,
+                progress: mappedProgress,
+                message: 'Waiting for transcription callback...',
+                updatedAt: new Date().toISOString(),
+              };
+            }
           } else if (transcriptionStatus.state === 'failed') {
             // Transcription failed
             const updatedStatus: GenerationStatus = {

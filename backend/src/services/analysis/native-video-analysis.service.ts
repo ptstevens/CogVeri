@@ -49,9 +49,9 @@ export class NativeVideoAnalysisService {
   constructor() {
     this.model = getVisionAnalysisModel();
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY is required for native video analysis');
+      throw new Error('GEMINI_API_KEY is required for native video analysis');
     }
 
     this.fileManager = new GoogleAIFileManager(apiKey);

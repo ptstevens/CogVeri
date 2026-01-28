@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 import { rubricGenerationService } from '../../services/rubric-generation.service';
 import taskTemplateService from '../../services/task-template.service';
 import notificationDispatcherService from '../../services/notification-dispatcher.service';
+import { templateCalibrationService } from '../../services/template-calibration.service';
 
 // Constants for retry logic
 const TRANSCRIPTION_POLL_INTERVAL_MS = 5000; // 5 seconds
@@ -40,7 +41,7 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
   protected async process(job: Job<RubricTemplateGenerationJobData>): Promise<RubricTemplateGenerationJobResult> {
     const {
       tempVideoId,
-      tempRecordingId: _tempRecordingId, // Reserved for future calibration use
+      tempRecordingId, // The recording ID - needed for calibration before cleanup
       organizationId,
       userId,
       storageKey: _storageKey, // Already stored in status
@@ -74,6 +75,7 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         {
           taskType,
           customContext,
+          skipCleanup: true, // We'll cleanup after calibration
         }
       );
 
@@ -115,8 +117,6 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         createdBy: userId,
         isActive: false, // Draft - needs review before going live
         tempVideoId, // Pass at top level to trigger evidence linking
-        // Note: sourceRecordingId not passed because temp recording is deleted after rubric generation
-        // Auto-calibration would require keeping the source video - future enhancement
       });
 
       logger.info('Template created as draft', {
@@ -125,23 +125,72 @@ export class RubricTemplateGenerationProcessor extends BaseProcessor<
         templateTitle: template.title,
       });
 
-      // Step 4: Send notification to user
+      // Step 4: Run calibration (analyze template video against its own rubric)
+      await this.reportProgress(job, { percentage: 85, stage: 'calibrating', message: 'Calibrating rubric accuracy...' });
+
+      let calibrationResult;
+      try {
+        calibrationResult = await templateCalibrationService.calibrateTemplate({
+          templateId: template.id,
+          sourceRecordingId: tempRecordingId,
+          organizationId,
+          persistSourceRecording: false, // Recording will be deleted after calibration
+        });
+
+        logger.info('Template calibration completed', {
+          jobId: job.id,
+          templateId: template.id,
+          baselineScore: calibrationResult.baselineScore,
+          status: calibrationResult.status,
+          stepsNeedingReview: calibrationResult.stepsNeedingReview.length,
+        });
+      } catch (calibrationError) {
+        // Don't fail the whole job if calibration fails - template is still usable
+        logger.error('Template calibration failed', {
+          jobId: job.id,
+          templateId: template.id,
+          error: calibrationError instanceof Error ? calibrationError.message : String(calibrationError),
+        });
+      }
+
+      // Step 5: Cleanup temp video now that calibration is done
+      await this.reportProgress(job, { percentage: 92, stage: 'cleanup', message: 'Cleaning up temporary files...' });
+
+      try {
+        await rubricGenerationService.cleanupTempVideo(tempVideoId);
+        logger.info('Temp video cleaned up after calibration', { tempVideoId });
+      } catch (cleanupError) {
+        // Don't fail if cleanup fails
+        logger.warn('Failed to cleanup temp video after calibration', {
+          tempVideoId,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        });
+      }
+
+      // Step 6: Send notification to user
       await this.reportProgress(job, { percentage: 95, stage: 'sending_notification', message: 'Sending notification...' });
+
+      // Build notification message based on calibration result
+      const calibrationInfo = calibrationResult
+        ? ` Calibration: ${calibrationResult.baselineScore.toFixed(0)}%${calibrationResult.status === 'needs_review' ? ' (needs review)' : ''}.`
+        : '';
 
       await notificationDispatcherService.dispatch({
         userId,
         organizationId,
         type: 'rubric_template_ready',
         title: 'Task Template Ready for Review',
-        message: `Your task template "${templateTitle}" has been generated and is ready for review.`,
+        message: `Your task template "${templateTitle}" has been generated and is ready for review.${calibrationInfo}`,
         entityType: 'task_template',
         entityId: template.id,
         actionUrl: `/templates/${template.id}/rubric`,
-        priority: 'medium',
+        priority: calibrationResult?.status === 'needs_review' ? 'high' : 'medium',
         metadata: {
           templateTitle,
           rubricStepsCount: result.rubricSteps.length,
           confidence: result.confidence,
+          calibrationStatus: calibrationResult?.status,
+          baselineScore: calibrationResult?.baselineScore,
         },
       });
 

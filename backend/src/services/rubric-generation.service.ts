@@ -744,6 +744,7 @@ class RubricGenerationService {
     options: {
       taskType: string;
       customContext?: string;
+      skipCleanup?: boolean; // If true, caller is responsible for cleanup (for calibration)
     }
   ): Promise<GenerationResult> {
     // Get status with transcription check
@@ -921,15 +922,20 @@ class RubricGenerationService {
 
       // Cleanup temp video from S3 after successful generation
       // This frees up storage since the video is no longer needed
-      try {
-        await this.cleanupTempVideo(tempVideoId);
-        logger.info('Temp video cleaned up after successful rubric generation', { tempVideoId });
-      } catch (cleanupError) {
-        // Don't fail the request if cleanup fails - the cleanup job will handle it later
-        logger.warn('Failed to cleanup temp video after rubric generation', {
-          tempVideoId,
-          error: cleanupError
-        });
+      // Skip cleanup if caller needs to run calibration first
+      if (!options.skipCleanup) {
+        try {
+          await this.cleanupTempVideo(tempVideoId);
+          logger.info('Temp video cleaned up after successful rubric generation', { tempVideoId });
+        } catch (cleanupError) {
+          // Don't fail the request if cleanup fails - the cleanup job will handle it later
+          logger.warn('Failed to cleanup temp video after rubric generation', {
+            tempVideoId,
+            error: cleanupError
+          });
+        }
+      } else {
+        logger.info('Skipping cleanup - caller will handle after calibration', { tempVideoId });
       }
 
       return result;

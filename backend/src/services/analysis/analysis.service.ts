@@ -18,6 +18,7 @@ import { speechAnalysisService, SpeechAnalysisResult } from './speech-analysis.s
 import { visualAnalysisService, VisualAnalysisResult } from './visual-analysis.service';
 import { frameExtractionService } from './frame-extraction.service';
 import { getNativeVideoAnalysisService } from './native-video-analysis.service';
+import { similarityScoringService, SimilarityResult, SimilarityAnalysisResponse } from './similarity-scoring.service';
 import {
   RubricStep,
   StepScoreResult,
@@ -89,6 +90,43 @@ class AnalysisService {
       .orderBy('start_time', 'asc');
 
     logger.info(`Starting analysis for recording ${recordingId} with ${rubricSteps.length} steps`);
+
+    // ============================================================
+    // STAGE 0: Similarity Analysis (Direct Template Comparison)
+    // ============================================================
+    // Get template ID from task for similarity comparison
+    let similarityResponse: SimilarityAnalysisResponse | null = null;
+    let templateId: string | null = null;
+
+    if (_taskId) {
+      const task = await db('tasks').where('id', _taskId).first();
+      templateId = task?.template_id;
+    }
+
+    if (templateId) {
+      try {
+        similarityResponse = await similarityScoringService.analyzeSimilarity({
+          templateId,
+          submissionTranscript: transcriptText,
+          submissionSegments: transcriptSegments.map((s: { text: string; start_time: number | string; end_time: number | string }) => ({
+            text: s.text,
+            start_time: typeof s.start_time === 'string' ? parseFloat(s.start_time) : s.start_time,
+            end_time: typeof s.end_time === 'string' ? parseFloat(s.end_time) : s.end_time,
+          })),
+          rubricSteps,
+        });
+
+        if (similarityResponse.hasEvidence) {
+          logger.info(`Similarity analysis complete for ${recordingId}`, {
+            templateId,
+            evidenceUsed: true,
+            avgSimilarity: similarityResponse.results.reduce((sum, r) => sum + r.overallSimilarity, 0) / similarityResponse.results.length,
+          });
+        }
+      } catch (error) {
+        logger.warn('Similarity analysis failed, will use AI-only scoring', { error, templateId });
+      }
+    }
 
     // ============================================================
     // STAGE 1: Speech Analysis
@@ -237,11 +275,16 @@ class AnalysisService {
     }
 
     // ============================================================
-    // STAGE 3: Combine Results
+    // STAGE 3: Combine Results (with Similarity Blending)
     // ============================================================
     await this.updateProgress(analysisJobId, 'combining_results', 80, 'Calculating scores...');
 
-    const stepResults = this.combineResults(speechResults, visualResults, rubricSteps);
+    const stepResults = this.combineResults(
+      speechResults,
+      visualResults,
+      rubricSteps,
+      similarityResponse?.results
+    );
 
     // ============================================================
     // STAGE 4: Calculate Verdict
@@ -307,31 +350,53 @@ class AnalysisService {
   }
 
   /**
-   * Combine speech and visual results
+   * Combine speech and visual results with similarity blending
    */
   private combineResults(
     speechResults: SpeechAnalysisResult[],
     visualResults: VisualAnalysisResult[],
-    rubricSteps: RubricStep[]
+    rubricSteps: RubricStep[],
+    similarityResults?: SimilarityResult[]
   ): StepScoreResult[] {
     return rubricSteps.map(step => {
       const speech = speechResults.find(r => r.stepId === step.id);
       const visual = visualResults.find(r => r.stepId === step.id);
+      const similarity = similarityResults?.find(r => r.stepId === step.id);
+
+      // Helper to blend AI score with similarity
+      const blendWithSimilarity = (aiScore: StepScoreValue, aiReasoning: string): { score: StepScoreValue; reasoning: string; blendedNumeric: number } => {
+        if (!similarity || similarity.recommendation === 'USE_AI') {
+          return {
+            score: aiScore,
+            reasoning: aiReasoning,
+            blendedNumeric: this.scoreToNumeric(aiScore),
+          };
+        }
+
+        const blended = similarityScoringService.blendScores(aiScore, similarity);
+        return {
+          score: blended.finalScore,
+          reasoning: `${aiReasoning} | Similarity: ${blended.reasoning}`,
+          blendedNumeric: blended.blendedNumeric,
+        };
+      };
 
       if (step.evidenceType === 'speech' && speech) {
+        const { score, reasoning, blendedNumeric } = blendWithSimilarity(speech.score as StepScoreValue, speech.reasoning);
         return {
           rubricStepId: step.id,
           stepOrder: step.order,
           stepTitle: step.title,
-          score: speech.score as StepScoreValue,
+          score,
           confidence: speech.confidence,
-          weightedScore: this.scoreToNumeric(speech.score) * step.weight / 10,
+          weightedScore: blendedNumeric * step.weight / 10,
           speechEvidence: speech.evidence,
-          aiReasoning: speech.reasoning,
+          aiReasoning: reasoning,
         };
       }
 
       if (step.evidenceType === 'visual' && visual) {
+        // Visual similarity not implemented yet, use AI score directly
         return {
           rubricStepId: step.id,
           stepOrder: step.order,
@@ -351,18 +416,24 @@ class AnalysisService {
         const speechNum = this.scoreToNumeric(speechScore);
         const visualNum = this.scoreToNumeric(visualScore);
         const avgNum = (speechNum + visualNum) / 2;
-        const combinedScore = this.numericToScore(avgNum);
+        const combinedAiScore = this.numericToScore(avgNum);
+
+        // Blend combined AI score with similarity
+        const { score, reasoning, blendedNumeric } = blendWithSimilarity(
+          combinedAiScore as StepScoreValue,
+          `Speech: ${speechScore}, Visual: ${visualScore}`
+        );
 
         return {
           rubricStepId: step.id,
           stepOrder: step.order,
           stepTitle: step.title,
-          score: combinedScore as StepScoreValue,
+          score,
           confidence: ((speech?.confidence || 0) + (visual?.confidence || 0)) / 2,
-          weightedScore: avgNum * step.weight / 10,
+          weightedScore: blendedNumeric * step.weight / 10,
           speechEvidence: speech?.evidence,
           visualEvidence: visual?.evidence,
-          aiReasoning: `Speech: ${speechScore}, Visual: ${visualScore}`,
+          aiReasoning: reasoning,
         };
       }
 

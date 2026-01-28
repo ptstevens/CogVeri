@@ -34,6 +34,7 @@ import {
 } from './analysis/prompts/rubric-generation.prompts';
 import { getRubricGenerationPrompt } from './analysis/prompts/prompt-resolver';
 import { logger } from '../utils/logger';
+import { retryGeminiCall } from '../utils/gemini-retry';
 import { BadRequestError, NotFoundError, InternalServerError } from '../utils/AppError';
 import { RubricStep, SpeechCriteria, VisualCriteria, EvidenceType } from '../queues/types/job-types';
 import { transcriptionQueueHelpers } from '../queues/definitions/transcription.queue';
@@ -1341,12 +1342,15 @@ class RubricGenerationService {
         },
       }));
 
-      // Call Gemini with batch prompt
+      // Call Gemini with batch prompt (with retry for rate limits)
       const prompt = buildBatchFrameDescriptionPrompt(frames.length);
-      const result = await this.visionModel.generateContent([
-        { text: prompt },
-        ...imageParts,
-      ]);
+      const result = await retryGeminiCall(
+        () => this.visionModel.generateContent([
+          { text: prompt },
+          ...imageParts,
+        ]),
+        'frame analysis'
+      );
 
       const response = result.response;
       const responseText = response.text();
@@ -1425,10 +1429,14 @@ class RubricGenerationService {
     // Fetch system prompt (from DB with fallback to hardcoded)
     const systemPrompt = await getRubricGenerationPrompt();
 
-    const result = await this.textModel.generateContent([
-      { text: systemPrompt },
-      { text: prompt },
-    ]);
+    // Call Gemini with retry for rate limits
+    const result = await retryGeminiCall(
+      () => this.textModel.generateContent([
+        { text: systemPrompt },
+        { text: prompt },
+      ]),
+      'rubric generation'
+    );
 
     const response = result.response;
     const responseText = response.text();

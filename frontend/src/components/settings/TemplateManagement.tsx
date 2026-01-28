@@ -990,7 +990,8 @@ const TemplateManagement: React.FC<TemplateManagementProps> = ({
         onQueued={() => {
           // Template will be created in background - no immediate refresh needed
           // User will be notified when ready and can refresh the page
-          setShowVideoModal(false);
+          // Note: Don't close modal here - let the success state show first
+          // User will close via "Got it" button which triggers handleSuccessClose
         }}
       />
     </div>

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { RubricBuilderProvider, useRubricBuilder } from '../../components/rubric/RubricBuilderProvider';
 import { RubricStepList } from '../../components/rubric/RubricStepList';
 import { GenerateRubricModal } from '../../components/rubric/GenerateRubricModal';
+import { CalibrationStatusBanner } from '../../components/rubric/CalibrationStatusBanner';
 import { EvaluationCriteria, RubricStep, TaskRequirements } from '../../types/rubric.types';
 import { useSubscription } from '../../hooks/useBilling';
 import api from '../../services/api';
@@ -334,6 +335,15 @@ function RubricBuilderContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Calibration Status Banner */}
+      {template?.calibration_status && (
+        <CalibrationStatusBanner
+          calibrationStatus={template.calibration_status}
+          baselineScore={template.baseline_score}
+          calibratedAt={template.calibrated_at}
+        />
       )}
 
       {/* Main Content */}

@@ -2,7 +2,7 @@
 # Coolify provides frontend/ directory as the build context
 #
 # Build stage - compile React app with Vite
-FROM node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c AS builder
+FROM node:25-alpine@sha256:f741690269ee7abb07675cb744f0b66ec117b482d89d9565a36f2360d5e2a3ef AS builder
 
 WORKDIR /app
 

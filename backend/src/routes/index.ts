@@ -12,9 +12,9 @@ import debugRoutes from './debug.routes';
 
 // Phase 4-8: Multi-tenant SaaS routes
 import authV2Routes from './auth-v2.routes';
-import organizationV2Routes from './organization-v2.routes';
+import organizationRoutes from './organization.routes';
 import organizationMemberRoutes from './organization-member.routes';
-import invitationsV2Routes from './invitations-v2.routes';
+import invitationsRoutes from './invitations.routes';
 import auditLoggingRoutes from './audit-logging.routes';
 
 // Phase 10: Onboarding
@@ -81,9 +81,9 @@ router.use('/magic-links', magicLinkRoutes);
 
 // Phase 4-8: Multi-tenant SaaS routes
 router.use('/auth/v2', authV2Routes);
-router.use('/organizations', organizationV2Routes);
+router.use('/organizations', organizationRoutes);
 router.use('/organizations', organizationMemberRoutes);  // Member management (invite, role changes, etc.)
-router.use('/invitations/v2', invitationsV2Routes);
+router.use('/invitations/v2', invitationsRoutes);
 router.use('/audit', auditLoggingRoutes);  // Changed from '/' to '/audit' - mounting at '/' applies middleware to ALL routes!
 
 // Phase 10: Onboarding routes

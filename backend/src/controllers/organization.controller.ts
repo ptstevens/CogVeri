@@ -2,7 +2,7 @@
  * OrganizationController
  *
  * Handles HTTP request/response for organization endpoints.
- * Extracted from organization-v2.routes.ts for better separation of concerns (Phase 5).
+ * Extracted from organization.routes.ts for better separation of concerns (Phase 5).
  *
  * Routes file now handles only routing and middleware attachment.
  * Business logic lives here in controller methods.

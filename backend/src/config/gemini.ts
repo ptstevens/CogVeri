@@ -64,9 +64,17 @@ export function initializeGeminiClient(): void {
   const projectId = process.env.GEMINI_PROJECT_ID;
   const location = process.env.GEMINI_LOCATION || 'europe-west2';
   const apiKey = process.env.GEMINI_API_KEY;
+  const hasServiceAccountKey = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  // Prefer Vertex AI when project ID is set (production)
-  if (projectId) {
+  // Vertex AI requires Application Default Credentials (ADC):
+  // - Service account key JSON (via GOOGLE_APPLICATION_CREDENTIALS env var)
+  // - GCP metadata server (when running on GCE/GKE/Cloud Run)
+  // - gcloud auth application-default login (local dev only)
+  //
+  // On non-GCP infrastructure (EC2, etc.), ADC only works with a service account key.
+  // API keys do NOT work with the @google-cloud/vertexai SDK.
+
+  if (projectId && hasServiceAccountKey) {
     try {
       vertexClient = new VertexAI({
         project: projectId,
@@ -80,23 +88,34 @@ export function initializeGeminiClient(): void {
       return;
     } catch (error) {
       logger.error('Failed to initialize Vertex AI client:', error);
+      logger.warn('Falling back to AI Studio...');
     }
+  } else if (projectId && !hasServiceAccountKey) {
+    logger.warn(
+      'GEMINI_PROJECT_ID is set but GOOGLE_APPLICATION_CREDENTIALS is not. ' +
+      'Vertex AI requires a service account key JSON on non-GCP infrastructure. ' +
+      'Falling back to AI Studio with API key. ' +
+      'To enable Vertex AI: create a service account key and set GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json'
+    );
   }
 
-  // Fallback to AI Studio (dev)
+  // AI Studio — works with API key on any infrastructure
   if (apiKey) {
     try {
       aiStudioClient = new GoogleGenerativeAI(apiKey);
       usingVertexAI = false;
       geminiConfigured = true;
-      logger.info('Gemini AI initialized via AI Studio (dev mode)');
+      logger.info('Gemini AI initialized via AI Studio');
+      if (projectId) {
+        logger.info('Note: To use Vertex AI (enterprise DPA + data residency), set GOOGLE_APPLICATION_CREDENTIALS');
+      }
       return;
     } catch (error) {
       logger.error('Failed to initialize AI Studio client:', error);
     }
   }
 
-  logger.info('Gemini AI not configured — set GEMINI_PROJECT_ID (Vertex AI) or GEMINI_API_KEY (AI Studio)');
+  logger.info('Gemini AI not configured — set GEMINI_API_KEY (AI Studio) or GEMINI_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS (Vertex AI)');
   geminiConfigured = false;
 }
 

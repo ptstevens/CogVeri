@@ -94,3 +94,7 @@ pnpm-lock.yaml
 # AI/Tool caches
 .serena/
 .claude/backend/knexfile.js
+
+# Production reset script - contains sensitive seeding logic
+# Store this securely outside the repo (e.g., encrypted secrets manager)
+backend/run-reset-prod.js

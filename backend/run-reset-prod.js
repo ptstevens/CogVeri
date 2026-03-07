@@ -193,11 +193,12 @@ async function resetProductionDatabase() {
     const adminId = uuidv4();
     const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
+    const adminName = process.env.SUPER_ADMIN_NAME || 'System Administrator';
     await scriptDb('users').insert({
       id: adminId,
       email: adminEmail.toLowerCase(),
       password: hashedPassword,
-      name: 'Paul Stevens',
+      name: adminName,
       role: 'admin',
       system_role: 'SUPER_ADMIN',
       is_system_admin: true,
@@ -225,39 +226,45 @@ async function resetProductionDatabase() {
     });
     console.log(`✅ Created Super Admin: ${adminEmail}`);
 
-    // 4b. Create Steve (regular admin - NOT a system admin)
-    console.log('\n👤 Creating Admin (***REDACTED_NAME***)...');
-    const steveId = uuidv4();
-    // Steve's password hash - same as his production password
-    const stevePasswordHash = '***REDACTED_HASH***';
+    // 4b. Create secondary admin (optional - driven entirely by env vars)
+    const secondaryAdminEmail = process.env.SECONDARY_ADMIN_EMAIL;
+    const secondaryAdminPassword = process.env.SECONDARY_ADMIN_PASSWORD;
+    const secondaryAdminName = process.env.SECONDARY_ADMIN_NAME || 'Secondary Admin';
 
-    await scriptDb('users').insert({
-      id: steveId,
-      email: '***REDACTED_EMAIL***',
-      password: stevePasswordHash,
-      name: '***REDACTED_NAME***',
-      role: 'admin',
-      system_role: null,           // NOT a SYSADMIN - can be granted later by admin@cogveri.com
-      is_system_admin: false,      // NOT a SYSADMIN
-      system_admin_since: null,    // Never was a SYSADMIN
-      organization_id: orgId,
-      org_role: 'admin',
-      org_status: 'active',
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
+    if (secondaryAdminEmail && secondaryAdminPassword) {
+      console.log(`\n👤 Creating Secondary Admin (${secondaryAdminName})...`);
+      const secondaryId = uuidv4();
+      const secondaryHashedPassword = await bcrypt.hash(secondaryAdminPassword, 12);
 
-    // Add Steve to organization_members table
-    await scriptDb('organization_members').insert({
-      user_id: steveId,
-      organization_id: orgId,
-      role: 'admin',
-      status: 'active',
-      joined_at: new Date(),
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
-    console.log(`✅ Created Admin: ***REDACTED_EMAIL*** (***REDACTED_NAME***)`);
+      await scriptDb('users').insert({
+        id: secondaryId,
+        email: secondaryAdminEmail.toLowerCase(),
+        password: secondaryHashedPassword,
+        name: secondaryAdminName,
+        role: 'admin',
+        system_role: null,      // NOT a SYSADMIN - can be granted later by primary admin
+        is_system_admin: false,
+        system_admin_since: null,
+        organization_id: orgId,
+        org_role: 'admin',
+        org_status: 'active',
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await scriptDb('organization_members').insert({
+        user_id: secondaryId,
+        organization_id: orgId,
+        role: 'admin',
+        status: 'active',
+        joined_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      console.log(`✅ Created Secondary Admin: ${secondaryAdminEmail} (${secondaryAdminName})`);
+    } else {
+      console.log('\n⏭️  No SECONDARY_ADMIN_EMAIL/PASSWORD set — skipping secondary admin creation.');
+    }
 
     // 5. Seed Rate Limit Rules
     console.log('\n⚡ Seeding rate limit rules...');
@@ -320,6 +327,10 @@ async function resetProductionDatabase() {
     console.log(`✅ Found ${count} system templates (created by migration 041).`);
 
     // Summary
+    const secondaryLine = process.env.SECONDARY_ADMIN_EMAIL
+      ? `   ✅ Secondary admin created: ${process.env.SECONDARY_ADMIN_EMAIL}`
+      : `   ⏭️  No secondary admin (SECONDARY_ADMIN_EMAIL not set)`;
+
     console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
 ║                    Production Reset Complete!                    ║
@@ -328,18 +339,15 @@ async function resetProductionDatabase() {
 📊 Summary:
    ✅ Schema reset and migrations applied
    ✅ System organization created (Enterprise tier, unlimited limits)
-   ✅ Super admin created: 1 (Paul Stevens - admin@cogveri.com)
-   ✅ Regular admin created: 1 (***REDACTED_NAME*** - NOT a SYSADMIN)
+   ✅ Super admin created: ${adminEmail} (SYSADMIN)
+${secondaryLine}
    ✅ Rate limit rules: 3 (free, pro, enterprise)
    ✅ System templates: ${count}
 
 🔐 Login Credentials:
-   1. Email: ${adminEmail} (Paul Stevens - SYSADMIN)
-      Password: [as set in SUPER_ADMIN_PASSWORD]
-   2. Email: ***REDACTED_EMAIL*** (***REDACTED_NAME*** - regular admin)
-      Password: [same as production]
+   Primary: ${adminEmail} — password as set in SUPER_ADMIN_PASSWORD
 
-⚠️  IMPORTANT: Remove WIPE_DATABASE_ON_START from Coolify env vars now!
+⚠️  IMPORTANT: Remove WIPE_DATABASE_ON_START from environment vars now!
 `);
 
   } catch (error) {

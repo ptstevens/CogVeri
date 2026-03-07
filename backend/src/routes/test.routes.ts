@@ -3,6 +3,9 @@ import { emailService } from '../services/email.service';
 import { logger } from '../utils/logger';
 import { getSendEmailQueue } from '../queues/definitions/send-email.queue';
 import { EmailTemplate } from '../queues/types/job-types';
+import { authenticate } from '../middleware/auth';
+import { requireSystemAdmin } from '../middleware/system-admin.middleware';
+import { EnhancedAuthRequest } from '../middleware/enhanced-auth.middleware';
 
 const router = Router();
 
@@ -12,14 +15,8 @@ const router = Router();
  */
 router.use((req: Request, res: Response, next: NextFunction): void => {
   const isProduction = process.env.NODE_ENV === 'production';
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  const isStaging =
-    process.env.ENVIRONMENT === 'staging' ||
-    process.env.APP_ENV === 'staging' ||
-    frontendUrl.includes('staging');
 
-  // Block in production, but allow in staging for testing
-  if (isProduction && !isStaging) {
+  if (isProduction) {
     logger.warn('Attempted access to test endpoint in production', {
       path: req.path,
       method: req.method,
@@ -31,6 +28,12 @@ router.use((req: Request, res: Response, next: NextFunction): void => {
   }
   next();
 });
+
+/**
+ * Security middleware: Require system admin authentication on ALL test routes
+ * Even in non-production environments, only system admins should trigger test emails.
+ */
+router.use(authenticate as any, requireSystemAdmin as any);
 
 // Test email endpoint - DEVELOPMENT ONLY
 router.post('/test-email', async (_req: Request, res: Response) => {

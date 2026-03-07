@@ -281,26 +281,50 @@ class SpeechAnalysisService {
         };
       }
 
-      // Check keywords
-      const keywordsFound = speechCriteria.requiredKeywords.filter(
-        kw => transcriptLower.includes(kw.toLowerCase())
-      );
-      const keywordsMissing = speechCriteria.requiredKeywords.filter(
-        kw => !transcriptLower.includes(kw.toLowerCase())
-      );
+      // ── Keyword matching with stemming-lite ──
+      // Use word-boundary matching and common suffix stripping to handle
+      // plurals, tenses, and minor Whisper transcription variations
+      const stemLite = (word: string) => word.toLowerCase()
+        .replace(/(ing|tion|sion|ment|ness|able|ible|ful|less|ous|ive|ise|ize|ised|ized|ising|izing|ed|er|est|ly|s|es)$/, '');
 
-      // Check phrases
-      const phrasesFound = speechCriteria.requiredPhrases.filter(
-        phrase => transcriptLower.includes(phrase.toLowerCase())
-      );
+      const transcriptWords = transcriptLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+      const transcriptStems = transcriptWords.map(stemLite);
 
-      // Find relevant excerpts
+      const fuzzyKeywordMatch = (kw: string): boolean => {
+        const kwLower = kw.toLowerCase();
+        // Exact substring match (original behavior)
+        if (transcriptLower.includes(kwLower)) return true;
+        // Stem match — handles plurals, tenses, etc.
+        const kwStem = stemLite(kwLower);
+        if (kwStem.length >= 3 && transcriptStems.some(ts => ts === kwStem || ts.includes(kwStem) || kwStem.includes(ts))) return true;
+        return false;
+      };
+
+      const fuzzyPhraseMatch = (phrase: string): boolean => {
+        const phraseLower = phrase.toLowerCase();
+        // Exact substring match
+        if (transcriptLower.includes(phraseLower)) return true;
+        // Word overlap: if >60% of phrase words appear in transcript, it's a match
+        const phraseWords = phraseLower.split(/\s+/).filter(w => w.length > 2);
+        if (phraseWords.length === 0) return false;
+        const matchedWords = phraseWords.filter(pw =>
+          transcriptWords.some(tw => tw.includes(pw) || pw.includes(tw) || stemLite(tw) === stemLite(pw))
+        );
+        return matchedWords.length / phraseWords.length >= 0.6;
+      };
+
+      const keywordsFound = speechCriteria.requiredKeywords.filter(fuzzyKeywordMatch);
+      const keywordsMissing = speechCriteria.requiredKeywords.filter(kw => !fuzzyKeywordMatch(kw));
+
+      const phrasesFound = speechCriteria.requiredPhrases.filter(fuzzyPhraseMatch);
+
+      // Find relevant excerpts (also use fuzzy matching)
       const relevantExcerpts = segments
         .filter(seg => {
           const segLower = seg.text.toLowerCase();
           return (
             speechCriteria.requiredKeywords.some(kw =>
-              segLower.includes(kw.toLowerCase())
+              segLower.includes(kw.toLowerCase()) || fuzzyKeywordMatch(kw)
             ) ||
             speechCriteria.requiredPhrases.some(phrase =>
               segLower.includes(phrase.toLowerCase())
@@ -314,16 +338,21 @@ class SpeechAnalysisService {
           endTime: typeof seg.end_time === 'string' ? parseFloat(seg.end_time) : seg.end_time,
         }));
 
-      // Calculate score
+      // Calculate score — more generous thresholds since same-video should score high
       const totalRequired =
         speechCriteria.requiredKeywords.length +
         speechCriteria.requiredPhrases.length;
       const found = keywordsFound.length + phrasesFound.length;
       const ratio = totalRequired > 0 ? found / totalRequired : 0;
 
+      // Also count optional keywords as bonus signal
+      const optionalFound = (speechCriteria.optionalKeywords || []).filter(fuzzyKeywordMatch).length;
+      const hasOptionalBonus = optionalFound > 0;
+      const adjustedRatio = hasOptionalBonus ? Math.min(ratio + 0.1, 1.0) : ratio;
+
       let score: StepScoreValue;
-      if (ratio >= 0.8) score = 'YES';
-      else if (ratio >= 0.4) score = 'PARTIAL';
+      if (adjustedRatio >= 0.6) score = 'YES';      // Lowered from 0.8 — more generous
+      else if (adjustedRatio >= 0.3) score = 'PARTIAL'; // Lowered from 0.4
       else score = 'NO';
 
       return {

@@ -257,7 +257,36 @@ class VisualAnalysisService {
   }
 
   /**
-   * Aggregate frame analysis into step results
+   * Fuzzy match: checks if two strings are semantically similar enough.
+   * Uses word overlap ratio — if >50% of words in the expected string
+   * appear in the detected string (or vice versa), it's a match.
+   */
+  private fuzzyMatch(expected: string, detected: string): boolean {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+    const expectedWords = normalize(expected);
+    const detectedWords = normalize(detected);
+
+    if (expectedWords.length === 0 || detectedWords.length === 0) return false;
+
+    // Exact substring match (original behavior)
+    if (detected.toLowerCase().includes(expected.toLowerCase())) return true;
+    if (expected.toLowerCase().includes(detected.toLowerCase())) return true;
+
+    // Word overlap: what fraction of expected words appear in detected?
+    const matchedWords = expectedWords.filter(ew =>
+      detectedWords.some(dw => dw.includes(ew) || ew.includes(dw))
+    );
+    const overlapRatio = matchedWords.length / expectedWords.length;
+
+    return overlapRatio >= 0.5;
+  }
+
+  /**
+   * Aggregate frame analysis into step results.
+   *
+   * Uses a two-pass approach:
+   * 1. First, check Gemini's direct stepMatches (most reliable — Gemini saw the rubric)
+   * 2. Fall back to fuzzy element/action matching only if Gemini didn't provide a match
    */
   private aggregateResults(
     frameAnalysis: any[],
@@ -283,7 +312,48 @@ class VisualAnalysisService {
         };
       }
 
-      // Collect all detections across frames
+      // ── Pass 1: Use Gemini's direct step matching (highest signal) ──
+      const matchedStep = stepMatches.find(m => m.stepId === step.id);
+
+      if (matchedStep && matchedStep.matched === true && matchedStep.confidence >= 0.5) {
+        // Gemini directly confirmed this step was observed — trust it
+        return {
+          stepId: step.id,
+          score: 'YES' as StepScoreValue,
+          confidence: matchedStep.confidence,
+          evidence: {
+            elementsDetected: (matchedStep.elementsFound || []).map((e: string) => ({ element: e, confidence: matchedStep.confidence })),
+            elementsMissing: matchedStep.elementsMissing || [],
+            actionsDetected: (matchedStep.actionsFound || []).map((a: string) => ({ action: a, confidence: matchedStep.confidence })),
+            actionsMissing: matchedStep.actionsMissing || [],
+            visualScore: 'YES' as 'YES' | 'PARTIAL' | 'NO',
+            visualConfidence: matchedStep.confidence,
+            observation: matchedStep.observation,
+          },
+          reasoning: matchedStep.observation || `Gemini confirmed step observed (confidence: ${matchedStep.confidence})`,
+        };
+      }
+
+      // If Gemini explicitly said not matched with high confidence, respect that too
+      if (matchedStep && matchedStep.matched === false && matchedStep.confidence >= 0.7) {
+        return {
+          stepId: step.id,
+          score: 'NO' as StepScoreValue,
+          confidence: matchedStep.confidence,
+          evidence: {
+            elementsDetected: [],
+            elementsMissing: matchedStep.elementsMissing || visual.expectedElements,
+            actionsDetected: [],
+            actionsMissing: matchedStep.actionsMissing || visual.expectedActions,
+            visualScore: 'NO' as 'YES' | 'PARTIAL' | 'NO',
+            visualConfidence: matchedStep.confidence,
+            observation: matchedStep.observation,
+          },
+          reasoning: matchedStep.observation || 'Step not observed in recording',
+        };
+      }
+
+      // ── Pass 2: Fuzzy element/action matching (fallback) ──
       const allElements: any[] = [];
       const allActions: any[] = [];
 
@@ -302,53 +372,53 @@ class VisualAnalysisService {
         }
       }
 
-      // Match against expected
+      // Fuzzy matching instead of exact substring
       const elementsFound = visual.expectedElements.filter(expected =>
-        allElements.some(detected =>
-          detected.element?.toLowerCase().includes(expected.toLowerCase())
-        )
+        allElements.some(detected => this.fuzzyMatch(expected, detected.element || ''))
       );
       const elementsMissing = visual.expectedElements.filter(
         e => !elementsFound.includes(e)
       );
 
       const actionsFound = visual.expectedActions.filter(expected =>
-        allActions.some(detected =>
-          detected.action?.toLowerCase().includes(expected.toLowerCase())
-        )
+        allActions.some(detected => this.fuzzyMatch(expected, detected.action || ''))
       );
       const actionsMissing = visual.expectedActions.filter(
         a => !actionsFound.includes(a)
       );
 
-      // Calculate score
+      // Calculate score with more generous thresholds
       const totalRequired = visual.expectedElements.length + visual.expectedActions.length;
       const found = elementsFound.length + actionsFound.length;
       const ratio = totalRequired > 0 ? found / totalRequired : 0;
 
+      // If Gemini provided a partial match observation, factor it in
+      const geminiPartialMatch = matchedStep && matchedStep.confidence > 0;
+      const adjustedRatio = geminiPartialMatch
+        ? Math.max(ratio, matchedStep.confidence * 0.8)
+        : ratio;
+
       let score: StepScoreValue;
-      if (ratio >= 0.8) score = 'YES';
-      else if (ratio >= 0.4) score = 'PARTIAL';
+      if (adjustedRatio >= 0.6) score = 'YES';      // Lowered from 0.8 — be generous
+      else if (adjustedRatio >= 0.3) score = 'PARTIAL'; // Lowered from 0.4
       else score = 'NO';
 
-      // Find observation from stepMatches (Gemini's description of what was witnessed)
-      const matchedStep = stepMatches.find(m => m.stepId === step.id);
       const observation = matchedStep?.observation || undefined;
 
       return {
         stepId: step.id,
         score,
-        confidence: ratio,
+        confidence: adjustedRatio,
         evidence: {
           elementsDetected: allElements.slice(0, 10),
           elementsMissing,
           actionsDetected: allActions.slice(0, 10),
           actionsMissing,
           visualScore: score as 'YES' | 'PARTIAL' | 'NO',
-          visualConfidence: ratio,
+          visualConfidence: adjustedRatio,
           observation,
         },
-        reasoning: observation || `Found ${found}/${totalRequired} expected elements/actions`,
+        reasoning: observation || `Found ${found}/${totalRequired} expected elements/actions (fuzzy match)`,
       };
     });
   }

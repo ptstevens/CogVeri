@@ -555,21 +555,37 @@ class AnalysisService {
 
         const speechNum = this.scoreToNumeric(speechScore);
         const visualNum = this.scoreToNumeric(visualScore);
-        const avgNum = (speechNum + visualNum) / 2;
-        const combinedAiScore = this.numericToScore(avgNum);
+
+        // Use MAX instead of AVG — if either channel confirms the step,
+        // it's verified. This prevents a weaker visual match from dragging
+        // down a strong speech match (or vice versa). The two channels are
+        // complementary evidence sources, not independent requirements.
+        const combinedNum = Math.max(speechNum, visualNum);
+
+        // If both channels have data, boost confidence slightly when they agree
+        const bothPresent = speech && visual && speechScore !== 'UNABLE_TO_ASSESS' && visualScore !== 'UNABLE_TO_ASSESS';
+        const bothAgree = bothPresent && Math.abs(speechNum - visualNum) < 0.3;
+        const adjustedNum = bothAgree ? Math.min(combinedNum * 1.1, 1.0) : combinedNum;
+
+        const combinedAiScore = this.numericToScore(adjustedNum);
 
         // Blend combined AI score with similarity
         const { score, reasoning, blendedNumeric } = blendWithSimilarity(
           combinedAiScore as StepScoreValue,
-          `Speech: ${speechScore}, Visual: ${visualScore}`
+          `Speech: ${speechScore}, Visual: ${visualScore} (best-of used)`
         );
+
+        const speechConf = speech?.confidence || 0;
+        const visualConf = visual?.confidence || 0;
+        // Confidence is the max of the two, not the average
+        const combinedConfidence = Math.max(speechConf, visualConf);
 
         return {
           rubricStepId: step.id,
           stepOrder: step.order,
           stepTitle: step.title,
           score,
-          confidence: ((speech?.confidence || 0) + (visual?.confidence || 0)) / 2,
+          confidence: combinedConfidence,
           weightedScore: blendedNumeric * step.weight / 10,
           speechEvidence: speech?.evidence,
           visualEvidence: visual?.evidence,

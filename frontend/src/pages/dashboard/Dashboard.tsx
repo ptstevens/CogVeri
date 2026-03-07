@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useEffect } from 'react';
+import { CohortStats } from '../../components/dashboard/CohortStats';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -393,6 +394,11 @@ const Dashboard = () => {
           <DashboardTaskBreakdown 
             dashboardData={dashboardData}
           />
+        </div>
+
+        {/* Team Performance & Cohort Benchmarking (managers/admins/owners only) */}
+        <div className="mb-8">
+          <CohortStats />
         </div>
       </div>
     </div>

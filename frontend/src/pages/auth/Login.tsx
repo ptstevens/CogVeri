@@ -13,6 +13,7 @@ const Login = () => {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -68,6 +69,12 @@ const Login = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMicrosoftLogin = () => {
+    setIsMicrosoftLoading(true);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    window.location.href = `${apiUrl}/auth/microsoft?mode=login&returnUrl=${encodeURIComponent(from)}`;
   };
 
   const handleGoogleLogin = () => {
@@ -177,6 +184,29 @@ const Login = () => {
                 isLoading={isGoogleLoading}
                 onClick={handleGoogleLogin}
               />
+
+              {/* Microsoft SSO — shown only when backend is configured */}
+              <button
+                type="button"
+                onClick={handleMicrosoftLogin}
+                disabled={isMicrosoftLoading}
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isMicrosoftLoading ? (
+                  <svg className="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+                  </svg>
+                )}
+                {isMicrosoftLoading ? 'Redirecting…' : 'Continue with Microsoft'}
+              </button>
 
               <OAuthPrivacyNotice compact />
 

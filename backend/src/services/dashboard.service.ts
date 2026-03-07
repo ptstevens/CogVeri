@@ -2,6 +2,51 @@ import { db } from '../config/database';
 import { logger } from '../utils/logger';
 import { cacheService } from './cache.service';
 
+// ─── Cohort Benchmarking Types ────────────────────────────────────────────────
+
+export interface CohortStats {
+  org_summary: {
+    total_analyses: number;
+    avg_score: number;
+    pass_rate: number;
+    partial_rate: number;
+    fail_rate: number;
+  };
+  by_task: Array<{
+    task_id: string;
+    task_title: string;
+    analysis_count: number;
+    avg_score: number;
+    pass_rate: number;
+    score_distribution: { range: string; count: number }[];
+    top_performers: Array<{ name: string; score: number }>;
+  }>;
+  leaderboard: Array<{
+    user_id: string;
+    name: string;
+    avg_score: number;
+    analyses_count: number;
+    pass_rate: number;
+  }>;
+}
+
+// ─── CSV Export Types ─────────────────────────────────────────────────────────
+
+export interface ExportRow {
+  task_title: string;
+  task_status: string;
+  assignee_name: string;
+  assignee_email: string;
+  recording_duration_seconds: number | null;
+  analysis_score: number | null;
+  analysis_verdict: string | null;
+  steps_passed: number | null;
+  steps_total: number | null;
+  submitted_at: string | null;
+  completed_at: string | null;
+  task_created_at: string;
+}
+
 export interface DashboardStats {
   tasks: {
     total: number;
@@ -222,6 +267,208 @@ class DashboardService {
       by_priority: {},
       by_type: {},
     };
+  }
+
+  // ─── Cohort Benchmarking ──────────────────────────────────────────────────────
+
+  async getCohortStats(organizationId: string): Promise<CohortStats> {
+    const cacheKey = `dashboard:cohort:${organizationId}`;
+    const cached = await cacheService.get<CohortStats>(cacheKey);
+    if (cached) return cached;
+
+    // Org-level summary
+    const orgSummary = await db('analysis_results as ar')
+      .join('analysis_jobs as aj', 'ar.analysis_job_id', 'aj.id')
+      .where('aj.organization_id', organizationId)
+      .where('aj.status', 'completed')
+      .select(
+        db.raw('count(*) as total_analyses'),
+        db.raw('round(avg(ar.overall_score)::numeric, 1) as avg_score'),
+        db.raw("round(100.0 * count(*) filter (where ar.overall_verdict = 'PASS') / nullif(count(*),0), 1) as pass_rate"),
+        db.raw("round(100.0 * count(*) filter (where ar.overall_verdict = 'PARTIAL_PASS') / nullif(count(*),0), 1) as partial_rate"),
+        db.raw("round(100.0 * count(*) filter (where ar.overall_verdict = 'FAIL') / nullif(count(*),0), 1) as fail_rate")
+      )
+      .first();
+
+    // Per-task breakdown
+    const taskRows = await db('analysis_results as ar')
+      .join('analysis_jobs as aj', 'ar.analysis_job_id', 'aj.id')
+      .join('tasks as t', 'ar.task_id', 't.id')
+      .where('aj.organization_id', organizationId)
+      .where('aj.status', 'completed')
+      .whereNotNull('ar.task_id')
+      .select(
+        't.id as task_id',
+        't.title as task_title',
+        db.raw('count(*) as analysis_count'),
+        db.raw('round(avg(ar.overall_score)::numeric, 1) as avg_score'),
+        db.raw("round(100.0 * count(*) filter (where ar.overall_verdict = 'PASS') / nullif(count(*),0), 1) as pass_rate"),
+        db.raw("count(*) filter (where ar.overall_score >= 80) as score_80_plus"),
+        db.raw("count(*) filter (where ar.overall_score >= 60 and ar.overall_score < 80) as score_60_79"),
+        db.raw("count(*) filter (where ar.overall_score >= 40 and ar.overall_score < 60) as score_40_59"),
+        db.raw("count(*) filter (where ar.overall_score < 40) as score_below_40")
+      )
+      .groupBy('t.id', 't.title')
+      .orderBy('analysis_count', 'desc')
+      .limit(10);
+
+    // Top performers per task — get top 3 scorers per task
+    const topPerformerRows = await db('analysis_results as ar')
+      .join('analysis_jobs as aj', 'ar.analysis_job_id', 'aj.id')
+      .join('recordings as r', 'ar.recording_id', 'r.id')
+      .join('users as u', 'r.user_id', 'u.id')
+      .where('aj.organization_id', organizationId)
+      .where('aj.status', 'completed')
+      .whereNotNull('ar.task_id')
+      .whereNotNull('r.user_id')
+      .select('ar.task_id', 'u.name', 'ar.overall_score')
+      .orderBy('ar.overall_score', 'desc');
+
+    // Leaderboard (top 10 users by avg score, min 2 analyses)
+    const leaderboard = await db('analysis_results as ar')
+      .join('analysis_jobs as aj', 'ar.analysis_job_id', 'aj.id')
+      .join('recordings as r', 'ar.recording_id', 'r.id')
+      .join('users as u', 'r.user_id', 'u.id')
+      .where('aj.organization_id', organizationId)
+      .where('aj.status', 'completed')
+      .whereNotNull('r.user_id')
+      .select(
+        'u.id as user_id',
+        'u.name',
+        db.raw('count(*) as analyses_count'),
+        db.raw('round(avg(ar.overall_score)::numeric, 1) as avg_score'),
+        db.raw("round(100.0 * count(*) filter (where ar.overall_verdict = 'PASS') / nullif(count(*),0), 1) as pass_rate")
+      )
+      .groupBy('u.id', 'u.name')
+      .having(db.raw('count(*) >= 2'))
+      .orderBy('avg_score', 'desc')
+      .limit(10);
+
+    // Assemble by_task with top performers
+    const byTask = taskRows.map((row: any) => {
+      const taskTopPerformers = topPerformerRows
+        .filter((p: any) => p.task_id === row.task_id)
+        .slice(0, 3)
+        .map((p: any) => ({ name: p.name, score: parseFloat(p.overall_score) }));
+
+      return {
+        task_id: row.task_id,
+        task_title: row.task_title,
+        analysis_count: parseInt(row.analysis_count),
+        avg_score: parseFloat(row.avg_score) || 0,
+        pass_rate: parseFloat(row.pass_rate) || 0,
+        score_distribution: [
+          { range: '80-100', count: parseInt(row.score_80_plus) || 0 },
+          { range: '60-79', count: parseInt(row.score_60_79) || 0 },
+          { range: '40-59', count: parseInt(row.score_40_59) || 0 },
+          { range: '0-39', count: parseInt(row.score_below_40) || 0 },
+        ],
+        top_performers: taskTopPerformers,
+      };
+    });
+
+    const result: CohortStats = {
+      org_summary: {
+        total_analyses: parseInt(orgSummary?.total_analyses) || 0,
+        avg_score: parseFloat(orgSummary?.avg_score) || 0,
+        pass_rate: parseFloat(orgSummary?.pass_rate) || 0,
+        partial_rate: parseFloat(orgSummary?.partial_rate) || 0,
+        fail_rate: parseFloat(orgSummary?.fail_rate) || 0,
+      },
+      by_task: byTask,
+      leaderboard: leaderboard.map((r: any) => ({
+        user_id: r.user_id,
+        name: r.name,
+        avg_score: parseFloat(r.avg_score) || 0,
+        analyses_count: parseInt(r.analyses_count) || 0,
+        pass_rate: parseFloat(r.pass_rate) || 0,
+      })),
+    };
+
+    await cacheService.set(cacheKey, result, 300); // 5 min cache
+    return result;
+  }
+
+  // ─── Org-Wide CSV Export ──────────────────────────────────────────────────────
+
+  async exportOrgData(organizationId: string, periodDays: number = 90): Promise<string> {
+    const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+    const rows = await db('tasks as t')
+      .where('t.organization_id', organizationId)
+      .where('t.created_at', '>=', since)
+      .leftJoin('users as assignee', 't.assigned_to', 'assignee.id')
+      .leftJoin('recordings as rec', function () {
+        this.on('rec.task_id', 't.id').andOn('rec.organization_id', db.raw('?', [organizationId]));
+      })
+      .leftJoin('analysis_jobs as aj', function () {
+        this.on('aj.recording_id', 'rec.id').andOn('aj.status', db.raw("'completed'"));
+      })
+      .leftJoin('analysis_results as ar', 'ar.analysis_job_id', 'aj.id')
+      .select(
+        't.title as task_title',
+        't.status as task_status',
+        't.created_at as task_created_at',
+        't.submitted_at',
+        't.completed_at',
+        db.raw("coalesce(assignee.name, t.claim_name, 'Unassigned') as assignee_name"),
+        db.raw("coalesce(assignee.email, t.claim_email, '') as assignee_email"),
+        'rec.duration_seconds as recording_duration_seconds',
+        'ar.overall_score as analysis_score',
+        'ar.overall_verdict as analysis_verdict',
+        'ar.steps_passed',
+        'ar.steps_total'
+      )
+      .orderBy('t.created_at', 'desc');
+
+    // Build CSV
+    const headers = [
+      'Task Title',
+      'Status',
+      'Assignee Name',
+      'Assignee Email',
+      'Recording Duration (s)',
+      'Analysis Score (%)',
+      'Verdict',
+      'Steps Passed',
+      'Steps Total',
+      'Submitted At',
+      'Completed At',
+      'Created At',
+    ];
+
+    const escape = (val: any): string => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvRows = [
+      headers.join(','),
+      ...rows.map((r: any) =>
+        [
+          r.task_title,
+          r.task_status,
+          r.assignee_name,
+          r.assignee_email,
+          r.recording_duration_seconds,
+          r.analysis_score !== null ? parseFloat(r.analysis_score).toFixed(1) : '',
+          r.analysis_verdict,
+          r.steps_passed,
+          r.steps_total,
+          r.submitted_at ? new Date(r.submitted_at).toISOString() : '',
+          r.completed_at ? new Date(r.completed_at).toISOString() : '',
+          new Date(r.task_created_at).toISOString(),
+        ]
+          .map(escape)
+          .join(',')
+      ),
+    ];
+
+    return csvRows.join('\n');
   }
 }
 

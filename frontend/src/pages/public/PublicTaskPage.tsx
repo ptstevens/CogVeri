@@ -581,6 +581,10 @@ const PublicTaskPage: React.FC = () => {
     const task = taskData.task;
     const isSubmitted = task.status === 'submitted' || task.status === 'completed';
 
+    // Parse rubric steps from evaluation_criteria if available
+    const rubricSteps: Array<{ title: string; description?: string }> =
+      task.evaluation_criteria?.steps || task.evaluation_criteria || [];
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Header with CogVeri branding */}
@@ -590,7 +594,24 @@ const PublicTaskPage: React.FC = () => {
               <img src="/cogveri-icon.png" alt="CogVeri" className="h-8 w-auto" />
               <span className="font-semibold text-gray-900">CogVeri</span>
             </div>
-            <span className="text-sm text-gray-500">Recording Task</span>
+            {!isSubmitted && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                  Confirmed
+                </span>
+                <span className="w-4 h-px bg-gray-300" />
+                <span className="flex items-center gap-1">
+                  <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">2</span>
+                  Record
+                </span>
+                <span className="w-4 h-px bg-gray-300" />
+                <span className="flex items-center gap-1 text-gray-400">
+                  <span className="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center text-xs">3</span>
+                  Submit
+                </span>
+              </div>
+            )}
           </div>
         </header>
 
@@ -684,6 +705,36 @@ const PublicTaskPage: React.FC = () => {
                   </span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Rubric Preview — shown before recording starts so contributor knows what's assessed */}
+          {!isSubmitted && chunkedRecording.state === 'idle' && rubricSteps.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <ListChecks className="h-6 w-6 text-purple-600" />
+                What You'll Be Assessed On
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Your recording will be evaluated against these criteria. Make sure you demonstrate each one clearly.
+              </p>
+              <ol className="space-y-3">
+                {rubricSteps.map((step: any, idx: number) => (
+                  <li key={idx} className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">
+                        {typeof step === 'string' ? step : step.title || step.name || `Step ${idx + 1}`}
+                      </p>
+                      {typeof step === 'object' && step.description && (
+                        <p className="text-xs text-gray-500 mt-0.5">{step.description}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
 
@@ -991,17 +1042,33 @@ const PublicTaskPage: React.FC = () => {
 
           {/* Submitted State */}
           {isSubmitted && (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              {/* Success banner */}
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-8 py-10 text-center text-white">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-9 w-9 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Recording Submitted!</h3>
+                <p className="text-green-100">
+                  Your recording has been received and is being processed.
+                </p>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h3>
-              <p className="text-gray-600 mb-6">
-                Your recording has been submitted successfully and is now being reviewed by {task.creator_name}.
-              </p>
-              <p className="text-sm text-gray-500">
-                You can close this page. If any changes are needed, you'll receive an email notification.
-              </p>
+
+              <div className="px-8 py-6 space-y-4">
+                {/* What happens next */}
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 mb-2">What happens next?</h4>
+                  <ol className="space-y-1 text-sm text-blue-800 list-decimal list-inside">
+                    <li>Your recording is being transcribed and analysed by our AI</li>
+                    <li>Results are reviewed by {task.creator_name}</li>
+                    <li>You'll receive an email if feedback or re-recording is needed</li>
+                  </ol>
+                </div>
+
+                <p className="text-sm text-gray-500 text-center">
+                  You can safely close this page.
+                </p>
+              </div>
             </div>
           )}
           </div>

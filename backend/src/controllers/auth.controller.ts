@@ -6,6 +6,7 @@ import userService from '../services/user.service';
 import { jwtService } from '../services/jwt.service';
 import { db } from '../config/database';
 import { googleOAuthService } from '../services/google-oauth.service';
+import { microsoftOAuthService } from '../services/microsoft-oauth.service';
 import { invitationService } from '../services/invitation.service';
 import { organizationMemberService } from '../services/organization-member.service';
 import { tokenBlacklistService } from '../services/token-blacklist.service';
@@ -792,5 +793,79 @@ export const changePassword = async (req: Request, res: Response, next: NextFunc
       return;
     }
     next(error);
+  }
+};
+
+// ─── Microsoft OAuth ──────────────────────────────────────────────────────────
+
+/**
+ * Initiate Microsoft OAuth flow
+ * GET /api/auth/microsoft
+ */
+export const microsoftAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!microsoftOAuthService.isConfigured()) {
+      res.status(503).json({ error: 'Microsoft SSO is not configured on this server.' });
+      return;
+    }
+    const mode = (req.query.mode as 'login' | 'signup') || 'login';
+    const organizationName = req.query.org as string | undefined;
+    const returnUrl = req.query.returnUrl as string | undefined;
+
+    const authUrl = microsoftOAuthService.getAuthUrl({ mode, organizationName, returnUrl });
+    logger.info(`Microsoft OAuth: Redirecting to Microsoft for ${mode}`);
+    res.redirect(authUrl);
+  } catch (error) {
+    logger.error('Microsoft OAuth initiation error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Handle Microsoft OAuth callback
+ * GET /api/auth/microsoft/callback
+ */
+export const microsoftCallback = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const { code, state, error: msError } = req.query;
+
+  if (msError) {
+    logger.error(`Microsoft OAuth error: ${msError}`);
+    return res.redirect(`${frontendUrl}/login?error=microsoft_auth_failed&message=${encodeURIComponent(String(msError))}`);
+  }
+
+  if (!code) {
+    return res.redirect(`${frontendUrl}/login?error=microsoft_auth_failed&message=No+authorization+code+received`);
+  }
+
+  const stateData = state ? microsoftOAuthService.parseState(String(state)) : { mode: 'login' as const };
+
+  try {
+    const msUser = await microsoftOAuthService.handleCallback(String(code));
+    const result = await microsoftOAuthService.findOrCreateUser(
+      msUser,
+      stateData.mode,
+      stateData.organizationName,
+      stateData.returnUrl
+    );
+
+    // Set refresh token as HttpOnly cookie (same as Google flow)
+    setRefreshTokenCookie(res, result.refreshToken);
+
+    // Store access token in memory on the frontend via URL param (same pattern as Google)
+    const returnUrl = stateData.returnUrl || '/dashboard';
+    const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
+    redirectUrl.searchParams.set('token', result.accessToken);
+    redirectUrl.searchParams.set('returnUrl', returnUrl);
+    redirectUrl.searchParams.set('isNewUser', String(result.isNewUser));
+
+    logger.info(`Microsoft OAuth: Successfully authenticated ${msUser.mail || msUser.userPrincipalName} (new: ${result.isNewUser})`);
+    res.redirect(redirectUrl.toString());
+  } catch (err: any) {
+    logger.error('Microsoft OAuth callback error:', err);
+    if (err.message === 'NO_ACCOUNT') {
+      return res.redirect(`${frontendUrl}/login?error=microsoft_no_account&message=No+CogVeri+account+found.+Please+sign+up+first.`);
+    }
+    return res.redirect(`${frontendUrl}/login?error=microsoft_auth_failed&message=${encodeURIComponent(err.message || 'Authentication failed')}`);
   }
 };

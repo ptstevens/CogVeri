@@ -177,3 +177,41 @@ export const getActivityFeed = async (req: AuthenticatedRequest, res: Response, 
     next(error);
   }
 };
+/**
+ * GET /dashboard/cohort
+ * Cohort benchmarking — org-wide performance analytics
+ * Requires admin/owner/manager role
+ */
+export const getCohortStats = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const organizationId = (req as any).user?.org_id;
+    if (!organizationId) throw new BadRequestError('Organization ID is required');
+
+    const stats = await dashboardService.getCohortStats(organizationId);
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /dashboard/export?period=90
+ * Org-wide CSV data export
+ * Requires admin/owner role
+ */
+export const exportOrgData = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const organizationId = (req as any).user?.org_id;
+    if (!organizationId) throw new BadRequestError('Organization ID is required');
+
+    const periodDays = Math.min(parseInt(req.query.period as string) || 90, 365);
+    const csv = await dashboardService.exportOrgData(organizationId, periodDays);
+
+    const filename = `cogveri-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+};

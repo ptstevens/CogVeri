@@ -9,6 +9,8 @@ import {
   changePassword,
   googleAuth,
   googleCallback,
+  microsoftAuth,
+  microsoftCallback,
 } from '../controllers/auth.controller';
 import { enhancedAuthenticate } from '../middleware/enhanced-auth.middleware';
 import { authRateLimiter, refreshRateLimiter } from '../middleware/rateLimiter';
@@ -106,9 +108,14 @@ router.get('/me', enhancedAuthenticate, getMe);
 router.get('/google', googleAuth);
 router.get('/google/callback', googleCallback);
 
-// Legacy SSO routes (redirect to Google OAuth)
+// Microsoft OAuth routes
+router.get('/microsoft', microsoftAuth);
+router.get('/microsoft/callback', microsoftCallback);
+
+// Legacy SSO routes (now redirect to Microsoft if configured, else Google)
 router.get('/sso/login', (_req, res) => {
-  res.redirect('/api/auth/google');
+  const hasMicrosoft = !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
+  res.redirect(hasMicrosoft ? '/api/auth/microsoft' : '/api/auth/google');
 });
 
 router.get('/sso/callback', (_req, res) => {

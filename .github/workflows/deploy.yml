@@ -1,12 +1,6 @@
 name: Deploy Backend to EC2
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'package.json'
-      - 'package-lock.json'
   workflow_dispatch:
 
 env:

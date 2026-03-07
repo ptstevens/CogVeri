@@ -1,6 +1,12 @@
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
 import { cacheService } from './cache.service';
+import {
+  CohortTaskRow,
+  CohortTopPerformerRow,
+  CohortLeaderboardRow,
+  ExportDataRow,
+} from '../types/db-rows';
 
 // ─── Cohort Benchmarking Types ────────────────────────────────────────────────
 
@@ -73,7 +79,14 @@ export interface DashboardStats {
     average_completion_time: number;
     on_time_completion_rate: number;
   };
-  recent_activity: any[];
+  recent_activity: Array<{
+    id: string;
+    type: string;
+    description: string;
+    user_name?: string;
+    created_at: Date;
+    metadata?: Record<string, unknown>;
+  }>;
 }
 
 class DashboardService {
@@ -345,11 +358,11 @@ class DashboardService {
       .limit(10);
 
     // Assemble by_task with top performers
-    const byTask = taskRows.map((row: any) => {
+    const byTask = taskRows.map((row: CohortTaskRow) => {
       const taskTopPerformers = topPerformerRows
-        .filter((p: any) => p.task_id === row.task_id)
+        .filter((p: CohortTopPerformerRow) => p.task_id === row.task_id)
         .slice(0, 3)
-        .map((p: any) => ({ name: p.name, score: parseFloat(p.overall_score) }));
+        .map((p: CohortTopPerformerRow) => ({ name: p.name, score: parseFloat(p.overall_score) }));
 
       return {
         task_id: row.task_id,
@@ -376,7 +389,7 @@ class DashboardService {
         fail_rate: parseFloat(orgSummary?.fail_rate) || 0,
       },
       by_task: byTask,
-      leaderboard: leaderboard.map((r: any) => ({
+      leaderboard: leaderboard.map((r: CohortLeaderboardRow) => ({
         user_id: r.user_id,
         name: r.name,
         avg_score: parseFloat(r.avg_score) || 0,
@@ -437,7 +450,7 @@ class DashboardService {
       'Created At',
     ];
 
-    const escape = (val: any): string => {
+    const escape = (val: unknown): string => {
       if (val === null || val === undefined) return '';
       const str = String(val);
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -448,7 +461,7 @@ class DashboardService {
 
     const csvRows = [
       headers.join(','),
-      ...rows.map((r: any) =>
+      ...rows.map((r: ExportDataRow) =>
         [
           r.task_title,
           r.task_status,

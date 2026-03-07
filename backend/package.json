@@ -31,7 +31,7 @@
     "@aws-sdk/s3-request-presigner": "^3.966.0",
     "@google-cloud/vertexai": "^1.10.0",
     "@google/generative-ai": "^0.24.1",
-    "@sentry/node": "^7.120.4",
+    "@sentry/node": "^10.42.0",
     "@sentry/tracing": "^7.120.4",
     "@types/bcrypt": "^6.0.0",
     "@types/nodemailer": "^7.0.5",

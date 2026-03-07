@@ -1,132 +1,128 @@
 /**
  * Gemini AI Client Configuration
  *
- * Centralized Gemini client factory for AI-powered video analysis.
- * Uses Google's Generative AI SDK (@google/generative-ai).
+ * Supports two modes:
+ * - **AI Studio** (dev): Uses GEMINI_API_KEY via @google/generative-ai
+ * - **Vertex AI** (production): Uses GEMINI_PROJECT_ID + GEMINI_LOCATION via @google-cloud/vertexai
+ *   Provides: enterprise DPA, data residency, SOC 2/ISO 27001 coverage
+ *
+ * Vertex AI is auto-selected when GEMINI_PROJECT_ID is set.
  */
 
-import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-
-// Re-export types for use in services
-export type { GenerativeModel };
+import { GoogleGenerativeAI, GenerativeModel as AIStudioModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { VertexAI, HarmCategory as VHarmCategory, HarmBlockThreshold as VHarmBlockThreshold } from '@google-cloud/vertexai';
 import { logger } from '../utils/logger';
 
-/**
- * Gemini client singleton instance
- */
-let geminiClientInstance: GoogleGenerativeAI | null = null;
+// Both SDKs expose the same generateContent() runtime interface.
+// We export the AI Studio type as the canonical type since it's the superset,
+// and cast Vertex models to it at the factory boundary.
+export type GenerativeModel = AIStudioModel;
 
-/**
- * Whether Gemini is configured and available
- */
+// ─── Client Instances ─────────────────────────────────────────────────────────
+
+let aiStudioClient: GoogleGenerativeAI | null = null;
+let vertexClient: VertexAI | null = null;
 let geminiConfigured = false;
+let usingVertexAI = false;
 
-/**
- * Cached model instances
- */
 const modelCache: Map<string, GenerativeModel> = new Map();
 
-/**
- * Supported Gemini models for different use cases
- */
+// ─── Model Constants ──────────────────────────────────────────────────────────
+
 export const GEMINI_MODELS = {
-  // Primary model for analysis - best balance of quality and cost
-  // Note: gemini-2.0-flash-exp was deprecated, using stable version
   FLASH: 'gemini-2.0-flash',
-  // Fallback model (always available)
   FLASH_LEGACY: 'gemini-1.5-flash',
-  // For complex reasoning (higher cost)
   PRO: 'gemini-1.5-pro',
 } as const;
 
-/**
- * Default generation config for analysis tasks
- */
 export const DEFAULT_GENERATION_CONFIG = {
-  temperature: 0.0, // Zero for deterministic, reproducible analysis
+  temperature: 0.0,
   topP: 0.8,
   topK: 40,
   maxOutputTokens: 4096,
 };
 
-/**
- * Safety settings - allow analysis of screen recordings
- */
 export const ANALYSIS_SAFETY_SETTINGS = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
 
-/**
- * Initialize the Gemini client (call once at startup)
- */
-export function initializeGeminiClient(): void {
-  if (geminiClientInstance) {
-    logger.debug('Gemini client already initialized');
-    return;
-  }
+const VERTEX_SAFETY_SETTINGS = [
+  { category: VHarmCategory.HARM_CATEGORY_HARASSMENT, threshold: VHarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: VHarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: VHarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: VHarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: VHarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: VHarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: VHarmBlockThreshold.BLOCK_ONLY_HIGH },
+];
 
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+export function initializeGeminiClient(): void {
+  if (geminiConfigured) return;
+
+  const projectId = process.env.GEMINI_PROJECT_ID;
+  const location = process.env.GEMINI_LOCATION || 'europe-west2';
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey) {
-    logger.info('Gemini AI not configured - missing GEMINI_API_KEY');
-    geminiConfigured = false;
-    return;
+  // Prefer Vertex AI when project ID is set (production)
+  if (projectId) {
+    try {
+      vertexClient = new VertexAI({
+        project: projectId,
+        location,
+        apiEndpoint: `${location}-aiplatform.googleapis.com`,
+      });
+      usingVertexAI = true;
+      geminiConfigured = true;
+      logger.info(`Gemini AI initialized via Vertex AI (project: ${projectId}, location: ${location})`);
+      logger.info('Enterprise DPA and data residency controls active');
+      return;
+    } catch (error) {
+      logger.error('Failed to initialize Vertex AI client:', error);
+    }
   }
 
-  try {
-    geminiClientInstance = new GoogleGenerativeAI(apiKey);
-    geminiConfigured = true;
-    logger.info('Gemini AI client initialized successfully');
-  } catch (error) {
-    logger.error('Failed to initialize Gemini client:', error);
-    geminiConfigured = false;
+  // Fallback to AI Studio (dev)
+  if (apiKey) {
+    try {
+      aiStudioClient = new GoogleGenerativeAI(apiKey);
+      usingVertexAI = false;
+      geminiConfigured = true;
+      logger.info('Gemini AI initialized via AI Studio (dev mode)');
+      return;
+    } catch (error) {
+      logger.error('Failed to initialize AI Studio client:', error);
+    }
   }
+
+  logger.info('Gemini AI not configured — set GEMINI_PROJECT_ID (Vertex AI) or GEMINI_API_KEY (AI Studio)');
+  geminiConfigured = false;
 }
 
-/**
- * Get the Gemini client instance
- * @throws Error if Gemini is not configured
- */
+// ─── Client Access ────────────────────────────────────────────────────────────
+
 export function getGeminiClient(): GoogleGenerativeAI {
-  if (!geminiClientInstance) {
-    initializeGeminiClient();
+  if (!geminiConfigured) initializeGeminiClient();
+  if (!aiStudioClient && !vertexClient) {
+    throw new Error('Gemini AI is not configured. Set GEMINI_PROJECT_ID or GEMINI_API_KEY.');
   }
-
-  if (!geminiClientInstance) {
-    throw new Error('Gemini AI is not configured. Set GEMINI_API_KEY environment variable.');
-  }
-
-  return geminiClientInstance;
+  // For backward compat — callers that need the raw AI Studio client
+  if (aiStudioClient) return aiStudioClient;
+  throw new Error('Vertex AI mode active — use getGeminiModel() instead of getGeminiClient()');
 }
 
-/**
- * Check if Gemini is configured and available
- */
 export function isGeminiConfigured(): boolean {
-  if (!geminiConfigured && !geminiClientInstance) {
-    initializeGeminiClient();
-  }
+  if (!geminiConfigured) initializeGeminiClient();
   return geminiConfigured;
 }
 
-/**
- * Get a Gemini model instance (cached)
- */
+export function isUsingVertexAI(): boolean {
+  return usingVertexAI;
+}
+
+// ─── Model Factory ────────────────────────────────────────────────────────────
+
 export function getGeminiModel(
   modelName: string = GEMINI_MODELS.FLASH,
   options?: {
@@ -135,128 +131,98 @@ export function getGeminiModel(
   }
 ): GenerativeModel {
   const cacheKey = `${modelName}-${JSON.stringify(options || {})}`;
+  if (modelCache.has(cacheKey)) return modelCache.get(cacheKey)!;
 
-  if (modelCache.has(cacheKey)) {
-    return modelCache.get(cacheKey)!;
+  if (!geminiConfigured) initializeGeminiClient();
+
+  let model: GenerativeModel;
+
+  if (usingVertexAI && vertexClient) {
+    // Vertex AI model cast to AIStudioModel type — runtime interfaces are identical
+    model = vertexClient.getGenerativeModel({
+      model: modelName,
+      generationConfig: options?.generationConfig || DEFAULT_GENERATION_CONFIG,
+      safetySettings: options?.safetySettings
+        ? (options.safetySettings as any)
+        : VERTEX_SAFETY_SETTINGS,
+    }) as unknown as GenerativeModel;
+  } else if (aiStudioClient) {
+    model = aiStudioClient.getGenerativeModel({
+      model: modelName,
+      generationConfig: options?.generationConfig || DEFAULT_GENERATION_CONFIG,
+      safetySettings: options?.safetySettings || ANALYSIS_SAFETY_SETTINGS,
+    });
+  } else {
+    throw new Error('Gemini AI is not configured');
   }
-
-  const client = getGeminiClient();
-  const model = client.getGenerativeModel({
-    model: modelName,
-    generationConfig: options?.generationConfig || DEFAULT_GENERATION_CONFIG,
-    safetySettings: options?.safetySettings || ANALYSIS_SAFETY_SETTINGS,
-  });
 
   modelCache.set(cacheKey, model);
   return model;
 }
 
-/**
- * Get a model optimized for text analysis (speech/transcript)
- */
+// ─── Pre-configured Model Getters ─────────────────────────────────────────────
+
 export function getTextAnalysisModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
-    generationConfig: {
-      ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.0, // Zero for deterministic, reproducible scoring
-      maxOutputTokens: 2048,
-    },
+    generationConfig: { ...DEFAULT_GENERATION_CONFIG, temperature: 0.0, maxOutputTokens: 2048 },
   });
 }
 
-/**
- * Get a model optimized for vision/image analysis
- */
 export function getVisionAnalysisModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
-    generationConfig: {
-      ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.0, // Zero for deterministic, reproducible visual analysis
-      maxOutputTokens: 4096,
-    },
+    generationConfig: { ...DEFAULT_GENERATION_CONFIG, temperature: 0.0, maxOutputTokens: 4096 },
   });
 }
 
-
-/**
- * Get a model optimized for rubric generation (needs higher output tokens)
- */
 export function getRubricGenerationModel(): GenerativeModel {
   return getGeminiModel(GEMINI_MODELS.FLASH, {
-    generationConfig: {
-      ...DEFAULT_GENERATION_CONFIG,
-      temperature: 0.0, // Zero for deterministic rubric generation - consistency over creativity
-      maxOutputTokens: 8192, // Higher limit for complex rubrics with multiple steps
-    },
+    generationConfig: { ...DEFAULT_GENERATION_CONFIG, temperature: 0.0, maxOutputTokens: 8192 },
   });
 }
 
-/**
- * Configuration for analysis feature
- */
+// ─── Analysis Config ──────────────────────────────────────────────────────────
+
 export interface AnalysisConfig {
-  /** Whether AI analysis is enabled */
   enabled: boolean;
-  /** Maximum frames to analyze per recording */
   maxFrames: number;
-  /** Frame extraction interval in seconds */
   frameIntervalSeconds: number;
-  /** Model to use for text analysis */
   textModel: string;
-  /** Model to use for vision analysis */
   visionModel: string;
-  /** Maximum retries for API calls */
   maxRetries: number;
-  /** Delay between retries in ms */
   retryDelayMs: number;
-  /** Enable scene change detection for capturing important moments */
   enableSceneDetection: boolean;
-  /** Scene change sensitivity (0.0-1.0, lower = more sensitive) */
   sceneChangeThreshold: number;
 }
 
-/**
- * Get analysis configuration from environment
- */
 export function getAnalysisConfig(): AnalysisConfig {
   return {
     enabled: process.env.ANALYSIS_ENABLED !== 'false' && isGeminiConfigured(),
-    // Increased default to 45 frames to better handle longer videos with scene detection
     maxFrames: parseInt(process.env.ANALYSIS_MAX_FRAMES || '45', 10),
     frameIntervalSeconds: parseFloat(process.env.ANALYSIS_FRAME_INTERVAL || '1.0'),
     textModel: process.env.ANALYSIS_TEXT_MODEL || GEMINI_MODELS.FLASH,
     visionModel: process.env.ANALYSIS_VISION_MODEL || GEMINI_MODELS.FLASH,
     maxRetries: parseInt(process.env.ANALYSIS_MAX_RETRIES || '3', 10),
     retryDelayMs: parseInt(process.env.ANALYSIS_RETRY_DELAY_MS || '1000', 10),
-    // Scene detection enabled by default - captures important visual changes
     enableSceneDetection: process.env.ANALYSIS_SCENE_DETECTION !== 'false',
-    // 0.3 threshold balances sensitivity with noise (0.0 = very sensitive, 1.0 = only major changes)
     sceneChangeThreshold: parseFloat(process.env.ANALYSIS_SCENE_THRESHOLD || '0.3'),
   };
 }
 
-/**
- * Validate Gemini configuration at startup
- */
 export function validateGeminiConfig(): void {
   const config = getAnalysisConfig();
-
   if (!config.enabled) {
     logger.info('AI Analysis is disabled');
     return;
   }
-
   logger.info('AI Analysis configuration:', {
     enabled: config.enabled,
+    provider: usingVertexAI ? 'Vertex AI' : 'AI Studio',
+    location: usingVertexAI ? (process.env.GEMINI_LOCATION || 'europe-west2') : 'us (default)',
     maxFrames: config.maxFrames,
-    frameIntervalSeconds: config.frameIntervalSeconds,
     textModel: config.textModel,
     visionModel: config.visionModel,
     sceneDetection: config.enableSceneDetection,
-    sceneThreshold: config.sceneChangeThreshold,
   });
-
-  // Test the connection by getting the model
   try {
     getGeminiModel(config.textModel);
     logger.info('Gemini AI connection validated successfully');
@@ -265,44 +231,21 @@ export function validateGeminiConfig(): void {
   }
 }
 
-/**
- * Token usage tracking for cost estimation
- */
+// ─── Cost Estimation ──────────────────────────────────────────────────────────
+
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
 }
 
-/**
- * Cost estimation for Gemini API calls (January 2025 pricing)
- */
 export const GEMINI_PRICING = {
-  [GEMINI_MODELS.FLASH]: {
-    inputPer1M: 0.10, // $0.10 per 1M input tokens
-    outputPer1M: 0.40, // $0.40 per 1M output tokens
-  },
-  [GEMINI_MODELS.FLASH_LEGACY]: {
-    inputPer1M: 0.075,
-    outputPer1M: 0.30,
-  },
-  [GEMINI_MODELS.PRO]: {
-    inputPer1M: 1.25,
-    outputPer1M: 5.00,
-  },
+  [GEMINI_MODELS.FLASH]: { inputPer1M: 0.10, outputPer1M: 0.40 },
+  [GEMINI_MODELS.FLASH_LEGACY]: { inputPer1M: 0.075, outputPer1M: 0.30 },
+  [GEMINI_MODELS.PRO]: { inputPer1M: 1.25, outputPer1M: 5.00 },
 };
 
-/**
- * Estimate cost for token usage
- */
-export function estimateCost(
-  usage: TokenUsage,
-  model: string = GEMINI_MODELS.FLASH
-): number {
+export function estimateCost(usage: TokenUsage, model: string = GEMINI_MODELS.FLASH): number {
   const pricing = GEMINI_PRICING[model as keyof typeof GEMINI_PRICING] || GEMINI_PRICING[GEMINI_MODELS.FLASH];
-
-  const inputCost = (usage.inputTokens / 1_000_000) * pricing.inputPer1M;
-  const outputCost = (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
-
-  return inputCost + outputCost;
+  return (usage.inputTokens / 1_000_000) * pricing.inputPer1M + (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
 }

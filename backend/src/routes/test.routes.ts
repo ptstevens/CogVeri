@@ -5,7 +5,6 @@ import { getSendEmailQueue } from '../queues/definitions/send-email.queue';
 import { EmailTemplate } from '../queues/types/job-types';
 import { authenticate } from '../middleware/auth';
 import { requireSystemAdmin } from '../middleware/system-admin.middleware';
-import { EnhancedAuthRequest } from '../middleware/enhanced-auth.middleware';
 
 const router = Router();
 

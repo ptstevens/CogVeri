@@ -1,8 +1,3 @@
-/**
- * Getting Started with CogVeri - Knowledge Base Article
- */
-
-export const gettingStartedContent = `
 # Welcome to CogVeri
 
 CogVeri is an AI-powered platform that helps organizations create, manage, and evaluate task completions through video recordings and intelligent analysis.
@@ -142,4 +137,3 @@ Ready to dive deeper? Check out these guides:
 
 - [Creating Rubrics](/knowledge-base/creating-rubrics) - Learn how to build effective evaluation criteria
 - [Creating Templates](/knowledge-base/creating-templates) - Master template creation and management
-`;

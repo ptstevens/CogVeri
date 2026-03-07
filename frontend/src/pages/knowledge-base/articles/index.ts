@@ -1,17 +1,19 @@
 /**
  * Knowledge Base Article Registry
  *
- * Central registry for all knowledge base articles.
+ * Articles are stored as markdown files in ../content/ and imported via Vite's ?raw query.
  * To add a new article:
- * 1. Create a content file (e.g., my-article.ts)
- * 2. Import the content here
+ * 1. Create a .md file in ../content/
+ * 2. Import it below with ?raw
  * 3. Add to the articles array
  */
 
 import { LucideIcon, BookOpen, Blocks, LayoutTemplate } from 'lucide-react';
-import { gettingStartedContent } from './getting-started';
-import { creatingRubricsContent } from './creating-rubrics';
-import { creatingTemplatesContent } from './creating-templates';
+
+// Markdown content loaded as raw strings at build time (no runtime fetch needed)
+import gettingStartedContent from '../content/getting-started.md?raw';
+import creatingRubricsContent from '../content/creating-rubrics.md?raw';
+import creatingTemplatesContent from '../content/creating-templates.md?raw';
 
 export interface KBArticle {
   slug: string;

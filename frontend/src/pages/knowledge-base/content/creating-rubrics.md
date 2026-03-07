@@ -1,8 +1,3 @@
-/**
- * Creating Rubrics - Knowledge Base Article
- */
-
-export const creatingRubricsContent = `
 # Creating Rubrics
 
 Rubrics are the foundation of CogVeri's evaluation system. A well-designed rubric ensures consistent, fair, and accurate assessment of task recordings.
@@ -222,4 +217,3 @@ Now that you understand rubrics, learn how to put them into action:
 
 - [Creating Templates](/knowledge-base/creating-templates) - Build templates that use your rubrics
 - [Getting Started](/knowledge-base/getting-started) - Review the basics of CogVeri
-`;

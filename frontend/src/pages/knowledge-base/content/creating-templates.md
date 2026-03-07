@@ -1,8 +1,3 @@
-/**
- * Creating Templates - Knowledge Base Article
- */
-
-export const creatingTemplatesContent = `
 # Creating Templates
 
 Templates are reusable task blueprints that save time and ensure consistency when creating tasks. This guide covers everything you need to know about creating and managing templates in CogVeri.
@@ -328,4 +323,3 @@ Now you're ready to create effective templates! Continue learning:
 
 - [Creating Rubrics](/knowledge-base/creating-rubrics) - Build evaluation criteria for your templates
 - [Getting Started](/knowledge-base/getting-started) - Review CogVeri fundamentals
-`;

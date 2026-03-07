@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { BadRequestError, NotFoundError } from '../utils/AppError';
 import { logger } from '../utils/logger';
@@ -556,9 +557,135 @@ export const exportAnalysis = async (
   }
 };
 
+// ─── Human Override of AI Step Scores ─────────────────────────────────────────
+
+const overrideSchema = z.object({
+  stepScoreId: z.string().uuid(),
+  overrideScore: z.enum(['YES', 'PARTIAL', 'NO']),
+  reason: z.string().min(10, 'Override reason must be at least 10 characters'),
+});
+
+/**
+ * POST /recordings/:id/analysis/override
+ * Override an AI-generated step score with a human decision.
+ * Creates a full audit trail. Recalculates overall score/verdict.
+ */
+export const overrideStepScore = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = (req as any).user?.org_id;
+    const { id: recordingId } = req.params;
+
+    if (!organizationId) {
+      throw new BadRequestError('Organization context required');
+    }
+
+    const { stepScoreId, overrideScore, reason } = overrideSchema.parse(req.body);
+
+    // Verify recording belongs to org
+    const recording = await db('recordings')
+      .where('id', recordingId)
+      .where('organization_id', organizationId)
+      .first();
+
+    if (!recording) {
+      throw new NotFoundError('Recording not found');
+    }
+
+    // Verify step score exists and belongs to this recording
+    const stepScore = await db('analysis_step_scores as ass')
+      .join('analysis_results as ar', 'ass.analysis_result_id', 'ar.id')
+      .join('analysis_jobs as aj', 'ar.analysis_job_id', 'aj.id')
+      .where('ass.id', stepScoreId)
+      .where('aj.recording_id', recordingId)
+      .select('ass.*', 'ar.id as result_id', 'ar.analysis_job_id')
+      .first();
+
+    if (!stepScore) {
+      throw new NotFoundError('Step score not found for this recording');
+    }
+
+    // Apply the override
+    await db('analysis_step_scores')
+      .where('id', stepScoreId)
+      .update({
+        human_override_score: overrideScore,
+        override_reason: reason,
+        overridden_by: userId,
+        overridden_at: new Date(),
+      });
+
+    // Recalculate overall score using effective scores (human override where present, AI otherwise)
+    const allStepScores = await db('analysis_step_scores')
+      .where('analysis_result_id', stepScore.result_id);
+
+    let totalWeight = 0;
+    let achievedWeight = 0;
+    let stepsPassedCount = 0;
+
+    for (const s of allStepScores) {
+      const effectiveScore = s.human_override_score || s.score;
+      const numeric = effectiveScore === 'YES' ? 1 : effectiveScore === 'PARTIAL' ? 0.75 : 0;
+      const weight = s.weighted_score ? (s.weighted_score / (s.numeric_score || 1)) : 1;
+      totalWeight += weight;
+      achievedWeight += numeric * weight;
+      if (effectiveScore === 'YES') stepsPassedCount++;
+    }
+
+    const overallScore = totalWeight > 0 ? Math.round((achievedWeight / totalWeight) * 100) : 0;
+    const verdict = overallScore >= 80 ? 'PASS' :
+                    overallScore >= 60 ? 'PARTIAL_PASS' :
+                    overallScore >= 40 ? 'NEEDS_REVIEW' : 'FAIL';
+
+    await db('analysis_results')
+      .where('id', stepScore.result_id)
+      .update({
+        has_human_overrides: true,
+        human_override_score: overallScore,
+        human_override_verdict: verdict,
+      });
+
+    // Audit log
+    await db('organization_audit_logs').insert({
+      organization_id: organizationId,
+      user_id: userId,
+      action: 'analysis.step_score.override',
+      resource_type: 'analysis_step_score',
+      resource_id: stepScoreId,
+      details: JSON.stringify({
+        recording_id: recordingId,
+        step_title: stepScore.step_title,
+        ai_score: stepScore.score,
+        human_score: overrideScore,
+        reason,
+        new_overall_score: overallScore,
+        new_verdict: verdict,
+      }),
+      created_at: new Date(),
+    });
+
+    logger.info(`Step score override: ${stepScoreId} ${stepScore.score} → ${overrideScore} by ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        stepScoreId,
+        originalScore: stepScore.score,
+        overrideScore,
+        reason,
+        newOverallScore: overallScore,
+        newVerdict: verdict,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export default {
   getAnalysisResults,
   triggerAnalysis,
   getAnalysisStatus,
   exportAnalysis,
+  overrideStepScore,
 };

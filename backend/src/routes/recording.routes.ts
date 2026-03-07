@@ -14,6 +14,8 @@ import {
   getRecordingPlaybackUrl,
   getProcessingStatus,
   refreshDuration,
+  deleteRecording,
+  getRecordingDownloadUrl,
   // uploadMiddleware,
 } from '../controllers/recording.controller';
 import {
@@ -21,6 +23,7 @@ import {
   triggerAnalysis,
   getAnalysisStatus,
   exportAnalysis,
+  overrideStepScore,
 } from '../controllers/analysis.controller';
 import {
   checkAvailability,
@@ -43,8 +46,8 @@ router.post('/', requireTrialWriteAccess(), createRecording); // Create recordin
 router.get('/', getRecordings); // Get all recordings with optional filters (task_id, user_id, status)
 router.get('/:id', getRecording); // Get single recording
 // router.post('/:id/upload', uploadRateLimiter, uploadMiddleware, uploadRecording); // Upload video file - NOT YET IMPLEMENTED
-// router.delete('/:id', deleteRecording); // Delete recording - NOT YET IMPLEMENTED
-// router.get('/:id/download-url', getRecordingDownloadUrl); // Get download URL - NOT YET IMPLEMENTED
+router.delete('/:id', deleteRecording); // Delete recording (GDPR Article 17)
+router.get('/:id/download-url', getRecordingDownloadUrl); // Get download URL
 router.get('/:id/playback-url', getRecordingPlaybackUrl); // Get playback URL for video player
 router.get('/:id/processing-status', getProcessingStatus); // Get processing status (transcoding, transcription)
 router.post('/:id/refresh-duration', refreshDuration); // Probe video and update duration in database
@@ -69,6 +72,7 @@ router.get('/multipart/sessions/:sessionId', getSessionStatus); // Get specific 
 router.get('/:id/analysis', requireFeature('basicAiAnalysis'), getAnalysisResults); // Get analysis results
 router.post('/:id/analyze', requireFeature('fullAiRubricScoring'), triggerAnalysis); // Trigger analysis (requires Pro+)
 router.get('/:id/analysis/status', requireFeature('basicAiAnalysis'), getAnalysisStatus); // Get analysis progress
-router.get('/:id/analysis/export', requireFeature('fullAiRubricScoring'), exportAnalysis); // Export analysis results (requires Pro+)
+router.get('/:id/analysis/export', requireFeature('fullAiRubricScoring'), exportAnalysis);
+router.post('/:id/analysis/override', overrideStepScore); // Human override of AI step score // Export analysis results (requires Pro+)
 
 export default router;

@@ -359,3 +359,69 @@ export const refreshDuration = async (req: AuthenticatedRequest, res: Response, 
     next(error);
   }
 };
+
+// ─── Recording Deletion (GDPR Article 17 — Right to Erasure) ──────────────────
+
+export const deleteRecording = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = (req as any).user?.org_id;
+
+    if (!organizationId) {
+      throw new BadRequestError('Organization context required');
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      throw new BadRequestError('Recording ID is required');
+    }
+
+    await recordingService.deleteRecording(userId, id, organizationId);
+
+    res.json({
+      success: true,
+      message: 'Recording deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── Recording Download URL ───────────────────────────────────────────────────
+
+export const getRecordingDownloadUrl = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const organizationId = (req as any).user?.org_id;
+
+    if (!organizationId) {
+      throw new BadRequestError('Organization context required');
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      throw new BadRequestError('Recording ID is required');
+    }
+
+    // Verify the user has access to this recording
+    const recording = await recordingService.getRecordingById(id, organizationId);
+    if (!recording) {
+      throw new BadRequestError('Recording not found');
+    }
+
+    // Reuse the playback URL (pre-signed S3 URL) — browser handles download via Content-Disposition
+    const url = await recordingService.getRecordingPlaybackUrl(id);
+
+    res.json({
+      success: true,
+      data: {
+        downloadUrl: url,
+        filename: `cogveri-recording-${id}.mp4`,
+        expiresIn: 86400, // 24 hours
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

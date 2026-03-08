@@ -267,6 +267,7 @@ export const GEMINI_PRICING: Record<string, { inputPer1M: number; outputPer1M: n
 };
 
 export function estimateCost(usage: TokenUsage, model: string = GEMINI_MODELS.FLASH): number {
-  const pricing = GEMINI_PRICING[model as keyof typeof GEMINI_PRICING] || GEMINI_PRICING[GEMINI_MODELS.FLASH];
+  const defaultPricing = { inputPer1M: 0.15, outputPer1M: 0.60 };
+  const pricing = GEMINI_PRICING[model] || GEMINI_PRICING[GEMINI_MODELS.FLASH] || defaultPricing;
   return (usage.inputTokens / 1_000_000) * pricing.inputPer1M + (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
 }

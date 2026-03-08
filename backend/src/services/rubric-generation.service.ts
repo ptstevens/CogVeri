@@ -39,14 +39,23 @@ import { BadRequestError, NotFoundError, InternalServerError } from '../utils/Ap
 import { RubricStep, SpeechCriteria, VisualCriteria, EvidenceType } from '../queues/types/job-types';
 import { transcriptionQueueHelpers } from '../queues/definitions/transcription.queue';
 import { evidenceExtractionService } from './evidence-extraction.service';
+import { GoogleAIFileManager, FileState } from '@google/generative-ai/server';
+import type { FileMetadataResponse } from '@google/generative-ai/server';
 
 // Configuration constants
 const CONFIG = {
   MAX_FILE_SIZE_MB: 200,
   MAX_FILE_SIZE_BYTES: 200 * 1024 * 1024,
-  MAX_VIDEO_DURATION_MINUTES: 15,
-  MAX_VIDEO_DURATION_SECONDS: 15 * 60,
-  MAX_KEYFRAMES: 10,
+  MAX_VIDEO_DURATION_MINUTES: 30,
+  MAX_VIDEO_DURATION_SECONDS: 30 * 60,
+  MAX_KEYFRAMES: 10, // Fallback only — native video is primary
+  // Dynamic frame extraction for fallback: 1 frame per 10s, min 10, max 60
+  FRAMES_PER_SECOND: 1 / 10,
+  MIN_FRAMES: 10,
+  MAX_FRAMES: 60,
+  // Google File API processing timeout
+  VIDEO_PROCESSING_TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
+  VIDEO_PROCESSING_POLL_MS: 2000,
   TEMP_FILE_RETENTION_HOURS: 24,
   TEMP_FILE_RETENTION_MS: 24 * 60 * 60 * 1000,
   REDIS_KEY_PREFIX: 'rubric-gen:',
@@ -61,6 +70,8 @@ export type GenerationStage =
   | 'uploaded'
   | 'transcribing'
   | 'transcription_complete'
+  | 'uploading_video'
+  | 'processing_video'
   | 'extracting_frames'
   | 'analyzing_frames'
   | 'generating_rubric'
@@ -811,62 +822,97 @@ class RubricGenerationService {
         endTime: typeof row.end_time === 'string' ? parseFloat(row.end_time) : row.end_time,
       }));
 
-      // Create temp directory for frame extraction
+      // Create temp directory for video processing
       tempDir = path.join(os.tmpdir(), `rubric-gen-${tempVideoId}`);
       await fs.promises.mkdir(tempDir, { recursive: true });
 
-      // Download video from S3 for frame extraction
+      // Download video from S3
       await this.updateStatus(tempVideoId, {
         ...status,
-        stage: 'extracting_frames',
+        stage: 'uploading_video',
         progress: 55,
-        message: 'Downloading video for frame analysis...',
+        message: 'Downloading video for analysis...',
         updatedAt: new Date().toISOString(),
       });
 
       const videoPath = await this.downloadFromS3(status.storageKey!, tempDir, status.storageBucket);
 
-      // Extract keyframes
-      await this.updateStatus(tempVideoId, {
-        ...status,
-        stage: 'extracting_frames',
-        progress: 60,
-        message: 'Extracting keyframes...',
-        updatedAt: new Date().toISOString(),
+      // Try native video analysis first (full video → Gemini), fall back to frame extraction
+      let rubricSteps: RubricStep[];
+      let confidence: number;
+      let suggestedTitle: string;
+      let taskRequirements: TaskRequirements;
+
+      const nativeVideoResult = await this.generateRubricWithNativeVideo({
+        videoPath,
+        transcriptText,
+        transcriptSegments: segments,
+        taskType: options.taskType,
+        customContext: options.customContext,
+        tempVideoId,
+        status,
       });
 
-      const frames = await this.extractKeyframes(videoPath, tempDir, duration);
+      if (nativeVideoResult) {
+        // Native video analysis succeeded
+        rubricSteps = nativeVideoResult.rubricSteps;
+        confidence = nativeVideoResult.confidence;
+        suggestedTitle = nativeVideoResult.suggestedTitle;
+        taskRequirements = nativeVideoResult.taskRequirements;
+        totalTokensUsed += nativeVideoResult.tokens;
+        logger.info('Rubric generated via native video analysis', { tempVideoId });
+      } else {
+        // Fallback to frame extraction
+        logger.warn('Native video analysis failed, falling back to frame extraction', { tempVideoId });
 
-      // Analyze frames with AI
-      await this.updateStatus(tempVideoId, {
-        ...status,
-        stage: 'analyzing_frames',
-        progress: 70,
-        message: 'Analyzing video frames with AI...',
-        updatedAt: new Date().toISOString(),
-      });
+        await this.updateStatus(tempVideoId, {
+          ...status,
+          stage: 'extracting_frames',
+          progress: 60,
+          message: 'Extracting keyframes (fallback)...',
+          updatedAt: new Date().toISOString(),
+        });
 
-      const { frameDescriptions, tokens: frameTokens } = await this.analyzeFrames(frames);
-      totalTokensUsed += frameTokens;
+        // Dynamic frame count based on video duration
+        const numFrames = Math.max(
+          CONFIG.MIN_FRAMES,
+          Math.min(CONFIG.MAX_FRAMES, Math.ceil(duration * CONFIG.FRAMES_PER_SECOND))
+        );
+        const frames = await this.extractKeyframes(videoPath, tempDir, duration, numFrames);
 
-      // Generate rubric with AI
-      await this.updateStatus(tempVideoId, {
-        ...status,
-        stage: 'generating_rubric',
-        progress: 85,
-        message: 'Generating rubric from transcript and frames...',
-        updatedAt: new Date().toISOString(),
-      });
+        await this.updateStatus(tempVideoId, {
+          ...status,
+          stage: 'analyzing_frames',
+          progress: 70,
+          message: `Analyzing ${frames.length} video frames with AI...`,
+          updatedAt: new Date().toISOString(),
+        });
 
-      const { rubricSteps, confidence, suggestedTitle, taskRequirements, tokens: rubricTokens } =
-        await this.generateRubric({
+        const { frameDescriptions, tokens: frameTokens } = await this.analyzeFrames(frames);
+        totalTokensUsed += frameTokens;
+
+        await this.updateStatus(tempVideoId, {
+          ...status,
+          stage: 'generating_rubric',
+          progress: 85,
+          message: 'Generating rubric from transcript and frames...',
+          updatedAt: new Date().toISOString(),
+        });
+
+        const rubricResult = await this.generateRubric({
           transcriptText,
           transcriptSegments: segments,
           frameDescriptions,
           taskType: options.taskType,
           customContext: options.customContext,
         });
-      totalTokensUsed += rubricTokens;
+
+        rubricSteps = rubricResult.rubricSteps;
+        confidence = rubricResult.confidence;
+        suggestedTitle = rubricResult.suggestedTitle;
+        taskRequirements = rubricResult.taskRequirements;
+        totalTokensUsed += rubricResult.tokens;
+      }
 
       // Extract and store ground truth evidence for later comparison (Phase 2)
       // This enables direct similarity scoring between template and submission videos
@@ -875,7 +921,7 @@ class RubricGenerationService {
           tempVideoId,
           rubricSteps,
           transcriptSegments: segments,
-          frameDescriptions,
+          frameDescriptions: [], // Native video doesn't produce frame descriptions
           fullTranscript: transcriptText,
         });
         logger.info('Evidence extracted and stored for rubric generation', { tempVideoId });
@@ -1267,20 +1313,23 @@ class RubricGenerationService {
   private async extractKeyframes(
     videoPath: string,
     tempDir: string,
-    duration: number
+    duration: number,
+    maxFrames: number = CONFIG.MAX_KEYFRAMES
   ): Promise<Array<{ path: string; timestampSeconds: number }>> {
     const framesDir = path.join(tempDir, 'frames');
     await fs.promises.mkdir(framesDir, { recursive: true });
 
-    // Calculate interval to get CONFIG.MAX_KEYFRAMES evenly distributed
-    const interval = duration / CONFIG.MAX_KEYFRAMES;
+    // Calculate interval to get frames evenly distributed
+    const interval = duration / maxFrames;
     const framePattern = path.join(framesDir, 'frame_%04d.jpg');
+
+    logger.info('Extracting keyframes', { videoPath, duration, maxFrames, interval });
 
     return new Promise((resolve, reject) => {
       const args = [
         '-i', videoPath,
         '-vf', `fps=1/${interval}`,
-        '-frames:v', CONFIG.MAX_KEYFRAMES.toString(),
+        '-frames:v', maxFrames.toString(),
         '-q:v', '2',
         framePattern,
       ];
@@ -1316,6 +1365,194 @@ class RubricGenerationService {
 
       ffmpeg.on('error', reject);
     });
+  }
+
+  // ============================================================
+  // Native Video Analysis for Rubric Generation
+  // ============================================================
+
+  /**
+   * Generate rubric using native video analysis (uploads full video to Google).
+   * Returns null if native video analysis fails (caller should fall back to frames).
+   */
+  private async generateRubricWithNativeVideo(params: {
+    videoPath: string;
+    transcriptText: string;
+    transcriptSegments: TranscriptSegment[];
+    taskType: string;
+    customContext?: string;
+    tempVideoId: string;
+    status: GenerationStatus;
+  }): Promise<{
+    rubricSteps: RubricStep[];
+    confidence: number;
+    suggestedTitle: string;
+    taskRequirements: TaskRequirements;
+    tokens: number;
+  } | null> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      logger.warn('GEMINI_API_KEY not set, cannot use native video analysis');
+      return null;
+    }
+
+    let uploadedFile: FileMetadataResponse | null = null;
+    const fileManager = new GoogleAIFileManager(apiKey);
+
+    try {
+      // Step 1: Upload video to Google File API
+      await this.updateStatus(params.tempVideoId, {
+        ...params.status,
+        stage: 'uploading_video',
+        progress: 58,
+        message: 'Uploading video to AI for analysis...',
+        updatedAt: new Date().toISOString(),
+      });
+
+      const fileBuffer = await fs.promises.readFile(params.videoPath);
+      const ext = path.extname(params.videoPath).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+      };
+      const mimeType = mimeTypes[ext] || 'video/mp4';
+
+      const uploadResponse = await fileManager.uploadFile(fileBuffer, {
+        mimeType,
+        displayName: `rubric-gen-${params.tempVideoId}-${Date.now()}`,
+      });
+      uploadedFile = uploadResponse.file;
+
+      logger.info('Video uploaded to Google File API', {
+        tempVideoId: params.tempVideoId,
+        fileName: uploadedFile.name,
+        uri: uploadedFile.uri,
+        sizeBytes: fileBuffer.length,
+      });
+
+      // Step 2: Wait for video processing
+      await this.updateStatus(params.tempVideoId, {
+        ...params.status,
+        stage: 'processing_video',
+        progress: 65,
+        message: 'Waiting for AI to process video...',
+        updatedAt: new Date().toISOString(),
+      });
+
+      await this.waitForGoogleVideoProcessing(fileManager, uploadedFile.name);
+
+      // Step 3: Generate rubric with full video + transcript in one call
+      await this.updateStatus(params.tempVideoId, {
+        ...params.status,
+        stage: 'generating_rubric',
+        progress: 75,
+        message: 'AI is watching the full video and generating rubric...',
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Build the prompt — same rubric generation prompt but with a note that the AI
+      // is watching the full video (no frame descriptions needed)
+      const systemPrompt = await getRubricGenerationPrompt();
+      const userPrompt = buildRubricGenerationPrompt({
+        transcriptText: params.transcriptText,
+        transcriptSegments: params.transcriptSegments,
+        frameDescriptions: [], // Not needed — Gemini sees the full video
+        taskType: params.taskType,
+        customContext: params.customContext,
+      });
+
+      // Prepend video context note to the user prompt
+      const videoContextNote = `## Video Analysis Mode
+You have been provided the FULL VIDEO recording to watch. Analyze the complete video carefully — 
+observe all actions, screen changes, demonstrations, and visual elements throughout the entire recording.
+Do NOT rely solely on the transcript — use your visual understanding of what happens on screen.
+This gives you much richer context than static keyframes.\n\n`;
+
+      const result = await retryGeminiCall(
+        () => this.visionModel.generateContent([
+          { text: systemPrompt },
+          {
+            fileData: {
+              mimeType: uploadedFile!.mimeType,
+              fileUri: uploadedFile!.uri,
+            },
+          },
+          { text: videoContextNote + userPrompt },
+        ]),
+        'rubric generation (native video)'
+      );
+
+      const response = result.response;
+      const responseText = response.text();
+      const tokens = response.usageMetadata?.totalTokenCount || 0;
+
+      const parsed = this.parseRubricResponse(responseText);
+
+      logger.info('Native video rubric generation complete', {
+        tempVideoId: params.tempVideoId,
+        stepsCount: parsed.rubricSteps.length,
+        confidence: parsed.confidence,
+        tokens,
+      });
+
+      return {
+        rubricSteps: parsed.rubricSteps,
+        confidence: parsed.confidence,
+        suggestedTitle: parsed.suggestedTitle,
+        taskRequirements: parsed.taskRequirements,
+        tokens,
+      };
+
+    } catch (error) {
+      logger.error('Native video rubric generation failed', {
+        tempVideoId: params.tempVideoId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+
+    } finally {
+      // Cleanup: delete uploaded file from Google
+      if (uploadedFile?.name) {
+        try {
+          await fileManager.deleteFile(uploadedFile.name);
+          logger.debug('Cleaned up uploaded video from Google', { fileName: uploadedFile.name });
+        } catch (cleanupError) {
+          logger.warn('Failed to cleanup uploaded video from Google', { error: cleanupError });
+        }
+      }
+    }
+  }
+
+  /**
+   * Wait for Google to finish processing an uploaded video file.
+   */
+  private async waitForGoogleVideoProcessing(
+    fileManager: GoogleAIFileManager,
+    fileName: string
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < CONFIG.VIDEO_PROCESSING_TIMEOUT_MS) {
+      const file = await fileManager.getFile(fileName);
+
+      if (file.state === FileState.ACTIVE) {
+        logger.info('Video ready for analysis', { fileName, waitMs: Date.now() - startTime });
+        return;
+      }
+
+      if (file.state === FileState.FAILED) {
+        const errorObj = file as unknown as { error?: { message?: string } };
+        throw new Error(`Google video processing failed: ${errorObj.error?.message || 'Unknown error'}`);
+      }
+
+      logger.debug('Video still processing', { fileName, state: file.state });
+      await new Promise(resolve => setTimeout(resolve, CONFIG.VIDEO_PROCESSING_POLL_MS));
+    }
+
+    throw new Error(`Video processing timed out after ${CONFIG.VIDEO_PROCESSING_TIMEOUT_MS / 1000}s`);
   }
 
   /**

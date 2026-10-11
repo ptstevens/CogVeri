@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/migrations",
+    "rootDir": "./migrations",
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmitOnError": true
+  },
+  "include": ["migrations/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src", "seeds"]
+}

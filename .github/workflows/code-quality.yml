@@ -1,0 +1,115 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting with Prettier
+        run: npm run format -- --check
+
+      - name: Lint backend
+        working-directory: ./backend
+        run: npm run lint
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+
+      - name: Type check backend
+        working-directory: ./backend
+        run: npm run type-check
+
+      - name: Lint frontend
+        working-directory: ./frontend
+        run: npm run lint
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+
+      - name: Type check frontend
+        working-directory: ./frontend
+        run: npm run type-check
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './backend'
+          format: 'sarif'
+          output: 'backend-security-results.sarif'
+
+      - name: Run Trivy vulnerability scanner on frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './frontend'
+          format: 'sarif'
+          output: 'frontend-security-results.sarif'
+
+      - name: Upload backend security results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
+        with:
+          sarif_file: 'backend-security-results.sarif'
+          category: 'backend-security'
+
+      - name: Upload frontend security results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
+        with:
+          sarif_file: 'frontend-security-results.sarif'
+          category: 'frontend-security'
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "Checking backend dependencies..."
+          cd backend && npm outdated || true
+          echo "Checking frontend dependencies..."
+          cd ../frontend && npm outdated || true
+
+      - name: Audit dependencies for vulnerabilities
+        run: |
+          echo "Auditing backend..."
+          cd backend && npm audit --audit-level=moderate || true
+          echo "Auditing frontend..."
+          cd ../frontend && npm audit --audit-level=moderate || true

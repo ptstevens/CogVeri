@@ -1,0 +1,58 @@
+{
+  "name": "cogveri-monorepo",
+  "version": "1.0.0",
+  "description": "CogVeri - Knowledge, Verified. Enterprise video-based knowledge verification platform.",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "npm run test --workspace=backend",
+    "test:frontend": "npm run test --workspace=frontend",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "npm run lint --workspace=backend",
+    "lint:frontend": "npm run lint --workspace=frontend",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "type-check": "npm run type-check --workspace=backend && npm run type-check --workspace=frontend"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "concurrently": "^8.2.2",
+    "prettier": "^3.7.4",
+    "picomatch": "^4.0.2"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/company/cogveri"
+  },
+  "author": "Paul Stevens",
+  "license": "PROPRIETARY",
+  "overrides": {
+    "diff": "^8.0.3",
+    "lodash": "^4.17.23",
+    "fast-xml-parser": "5.3.8",
+    "rollup": "4.59.0",
+    "ajv": "^6.14.0",
+    "qs": "^6.14.2",
+    "markdown-it": "14.1.1",
+    "braces": ">=3.0.3",
+    "micromatch": ">=4.0.8"
+  }
+}

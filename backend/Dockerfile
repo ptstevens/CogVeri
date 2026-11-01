@@ -16,7 +16,7 @@
 
 # Use Node.js 20 LTS for better performance and security
 # Pinned to SHA256 digest for reproducible builds and supply chain security
-FROM node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c AS builder
+FROM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS builder
 
 WORKDIR /app
 
@@ -43,7 +43,7 @@ RUN npx tsc --target es2022 --module commonjs --esModuleInterop --skipLibCheck k
 
 # Production stage - minimal image
 # Pinned to SHA256 digest for reproducible builds and supply chain security
-FROM node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60fd7d5d430e9c
+FROM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94
 
 # Install curl for health checks and ffmpeg for video frame extraction
 RUN apk add --no-cache curl ffmpeg
